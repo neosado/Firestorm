@@ -7,10 +7,8 @@ The code is written in [Julia](http://julialang.org). You need to install Julia 
 
 #### Test Cases
 
-Run crying baby example
-
+Run crying baby example  
 `$ julia simBaby.jl`
 
-Run rocksample example
-
+Run rock sample example  
 `$ julia simRockSample.jl`
