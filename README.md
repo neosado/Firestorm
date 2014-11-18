@@ -1,10 +1,14 @@
 POMDP
 =====
 
-Run crying baby simulation
+Implement Monte-Carlo Tree Search(MCTS) methods for POMDP
+
+Test Cases
+
+Run crying baby example
 
 $ julia simBaby.jl
 
-Run rocksample simulation
+Run rocksample example
 
 $ julia simRockSample.jl
