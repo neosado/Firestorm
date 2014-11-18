@@ -2,6 +2,8 @@
 # Date: 11/04/2014
 
 # Upper Confidence Bound for Trees
+# L. Kocsis and C. Szepesvari, "Bandit Based Monte-Carlo Planning," in European Conference on Machine Learning (ECML), 2006.
+
 module UCT_
 
 export UCT, selectAction, reinitialize, initialize

@@ -2,6 +2,8 @@
 # Date: 11/04/2014
 
 # Partially Observable Monte-Carlo Planning
+# D. Silver and J. Veness, "Monte-Carlo Planning in Large POMDPs," in Advances in Neural Information Processing Systems (NIPS), 2010.
+
 module POMCP_
 
 export POMCP, selectAction, reinitialize, initialize, getParticles

@@ -1,6 +1,8 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 11/04/2014
 
+# Mykel J. Kochenderfer, Decision Making Under Uncertainty: Theory and Application, MIT Press, 2014.
+
 module BabyCrying_
 
 import Base.isequal, Base.hash

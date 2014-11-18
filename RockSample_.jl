@@ -1,6 +1,8 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 11/04/2014
 
+# T. Smith and R.G. Simmons, "Heuristic Search Value Iteration for POMDPs," in Conference on Uncertainty in Artificial Intelligence (UAI), 2004.
+
 module RockSample_
 
 import Base.isequal, Base.hash, Base.copy
