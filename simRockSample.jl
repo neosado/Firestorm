@@ -11,7 +11,7 @@ using Iterators
 using Base.Test
 
 
-function sampleParticles(pm, b, nsample = 1000000)
+function sampleParticles(pm, b, nsample = 100000)
 
     B = RSState[]
 
@@ -224,8 +224,8 @@ srand(uint(time()))
 
 pm = RockSample(5, 5, seed = rand(1:typemax(Int64)))
 
-alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 100000, nloop_min = 100000, c = 10.)
-#alg = POMCP(depth = 3)
+#alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 10.)
+alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 10.)
 
 #test(pm, alg)
 simulate(pm, alg)

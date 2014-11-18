@@ -43,7 +43,7 @@ type POMCP <: MCTS
     reuse::Bool
 
 
-    function POMCP(;depth::Int64 = 3, nloop_max::Int64 = 10000, nloop_min::Int64 = 10000, eps::Float64 = 1.e-3, c::Float64 = 1., gamma_::Float64 = 0.9, rgamma_::Float64 = 0.9)
+    function POMCP(;depth::Int64 = 3, default_policy::Function = pi_0, nloop_max::Int64 = 10000, nloop_min::Int64 = 10000, eps::Float64 = 1.e-3, c::Float64 = 1., gamma_::Float64 = 0.9, rgamma_::Float64 = 0.9)
 
         self = new()
 
@@ -78,10 +78,7 @@ end
 
 
 # \pi_0
-function default_policy(pm::POMDP, s::State)
-
-    a = pm.actions[rand(1:length(pm.actions))]
-end
+pi_0(pm::POMDP, s::State) = pm.actions[rand(1:length(pm.actions))]
 
 
 # s', o, r ~ G(s, a)
