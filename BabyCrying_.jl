@@ -9,6 +9,7 @@ import Base.isequal, Base.hash
 
 export BabyCrying, BCState, BCAction, BCObservation, BCBelief, BCBeliefVector, BCBeliefParticles, History
 export reward, observe, nextState, isEnd, sampleBelief, updateBelief
+export prob_tran, prob_obs
 
 
 using POMDP_
@@ -21,6 +22,8 @@ import POMDP_.nextState
 import POMDP_.isEnd
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
+import POMDP_.prob_tran
+import POMDP_.prob_obs
 
 
 immutable BCState <: State
@@ -38,7 +41,7 @@ end
 abstract BCBelief <: Belief
 
 immutable BCBeliefVector <: BCBelief
-    belief::Vector{Float64}
+    belief::Dict{BCState, Float64}
 end
 
 immutable BCBeliefParticles <: BCBelief
@@ -55,7 +58,7 @@ type BabyCrying <: POMDP
     actions::Vector{BCAction}
     nAction::Int64
 
-    obs::Vector{BCObservation}
+    observations::Vector{BCObservation}
     nObservation::Int64
 
 
@@ -69,7 +72,7 @@ type BabyCrying <: POMDP
         self.actions = [BCAction(:notfeed), BCAction(:feed)]
         self.nAction = 2
 
-        self.obs = [BCObservation(:notcrying), BCObservation(:crying)]
+        self.observations = [BCObservation(:notcrying), BCObservation(:crying)]
         self.nObservation = 2
 
         srand(uint(time()))
@@ -187,8 +190,7 @@ function observe(bc::BabyCrying, s_::BCState, a::BCAction)
     rv = rand()
     p_cs = 0.
 
-    for i = 1:bc.nObservation
-        o = bc.obs[i]
+    for o in bc.observations
         p_cs += prob_obs(bc, s_, a, o)
 
         if rv < p_cs
@@ -231,11 +233,11 @@ function sampleBelief(bc::BabyCrying, b::BCBeliefVector)
     rv = rand()
 
     sum_ = 0.
-    for i = 1:length(b.belief)
-        sum_ += b.belief[i]
+    for (s, v) in b.belief
+        sum_ += v
 
         if rv < sum_
-            return bc.states[i]
+            return s
         end
     end
 
@@ -254,21 +256,32 @@ function updateBelief(bc::BabyCrying, b::BCBeliefVector, a::BCAction, o::BCObser
 
     # b'(s') = O(o | s', a) \sum_s T(s' | s, a) b(s)
 
-    b_prob_ = zeros(bc.nState)
+    belief_ = Dict{BCState, Float64}()
 
-    for i = 1:bc.nState # s'
-        sum_ = 0
+    sum_belief = 0.
+    for s_ in keys(b.belief)
+        sum_ = 0.
 
-        for j = 1:bc.nState # s
-            sum_ += prob_tran(bc, bc.states[j], a, bc.states[i]) * b.belief[j]
+        for (s, v) in b.belief
+            sum_ += prob_tran(bc, s, a, s_) * v
         end
 
-        b_prob_[i] = prob_obs(bc, bc.states[i], a, o) * sum_
+        belief_[s_] = prob_obs(bc, s_, a, o) * sum_
+        sum_belief += belief_[s_]
     end
 
-    b_prob_ /= sum(b_prob_)
+    for s_ in keys(belief_)
+        belief_[s_] /= sum_belief
+    end
 
-    return BCBeliefVector(b_prob_)
+    @test length(belief_) == bc.nState
+    sum_ = 0.
+    for v in values(belief_)
+        sum_ += v
+    end
+    @test_approx_eq sum_ 1.
+
+    return BCBeliefVector(belief_)
 end
 
 function updateBelief(bc::BabyCrying, b::BCBeliefParticles)
@@ -294,6 +307,7 @@ function hash(s::BCState, h::Uint64 = zero(Uint64))
     return hash(s.state, h)
 end
 
+
 function isequal(a1::BCAction, a2::BCAction)
 
     return isequal(a1.action, a2.action)
@@ -308,6 +322,7 @@ function hash(a::BCAction, h::Uint64 = zero(Uint64))
 
     return hash(a.action, h)
 end
+
 
 function isequal(o1::BCObservation, o2::BCObservation)
 

@@ -6,7 +6,15 @@ module MCTS_
 
 export MCTS, selectAction, reinitialize, initialize
 
-abstract MCTS
+
+using Solver_
+
+
+import Solver_.selectAction
+
+
+abstract MCTS <: Solver
+
 
 selectAction(alg::MCTS) = error("$(typeof(alg)) does not implement selectAction()")
 reinitialize(alg::MCTS) = error("$(typeof(alg)) does not implement reinitialize()")

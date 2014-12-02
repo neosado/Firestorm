@@ -2,8 +2,12 @@
 # Date: 11/04/2014
 
 using RockSample_
+
+using QMDP_
+using FIB_
 using UCT_
 using POMCP_
+
 using Util
 using RockSampleVisualizer_
 
@@ -80,16 +84,15 @@ function getInitialBelief(pm::RockSample)
     belief = Dict{RSState, Float64}()
 
     sum_ = 0
-    for col = 1:pm.n
-        for row = 1:pm.n 
-            for rock_types in product(repeated([:good, :bad], pm.k)...)
-                if pm.rover_pos == (row, col)
-                    belief[RSState((row, col), [rock_types...])] = 1.
-                    sum_ += 1
-                else
-                    belief[RSState((row, col), [rock_types...])] = 0.
-                end
-            end
+    for s in pm.states
+        row, col = s.Position
+        rock_types = s.RockTypes
+
+        if pm.rover_pos == (row, col)
+            belief[RSState((row, col), rock_types)] = 1.
+            sum_ += 1
+        else
+            belief[RSState((row, col), rock_types)] = 0.
         end
     end
 
@@ -113,17 +116,18 @@ function test(pm, alg)
         a_opt, Qv = selectAction(alg, pm, b)
     end
 
-    println("Qv: ", round(Qv, 2))
-    println("action: ", a_opt)
+    Qv__ = Float64[]
+    for a in  pm.actions
+        push!(Qv__, round(Qv[a], 2))
+    end
+    println("Qv: ", Qv__)
+    println("action: ", a_opt.action)
 end
 
 
-function simulate(pm, alg)
+function simulate(pm, alg; wait = false)
 
-    rsv = RockSampleVisualizer(wait = false)
-    dispWorld(rsv, pm)
-    dispInitInfo(rsv, pm)
-    updateAnimation(rsv)
+    rsv = RockSampleVisualizer(wait = wait)
 
     s = getInitialState(pm)
     b = getInitialBelief(pm)
@@ -134,7 +138,11 @@ function simulate(pm, alg)
 
     R = 0.
 
-    println("time: 0, s: ", s)
+    println("time: 0, s: ", s.Position, " ", s.RockTypes)
+
+    dispWorld(rsv, pm)
+    dispInitInfo(rsv, pm)
+    updateAnimation(rsv)
 
     for i = 1:50
         #println("T: ", alg.T)
@@ -165,15 +173,19 @@ function simulate(pm, alg)
         r = reward(pm, s, a)
         R += r
 
+        Qv__ = Float64[]
+        for a__ in  pm.actions
+            push!(Qv__, round(Qv[a__], 2))
+        end
+        println("time: ", i, ", s: ", s.Position, " ", s.RockTypes, ", Qv: ", Qv__, ", a: ", a.action, ", o: ", o.observation, ", r: ", r, ", R: ", R, ", s_: ", s_.Position, " ", s_.RockTypes)
+
         updateInternalStates(pm, s, a, s_)
-
-        s = s_
-
-        println("time: ", i, ", s: ", s, ", Qv: ", round(Qv, 2), ", a: ", a, ", o: ", o, ", r: ", r, ", R: ", R)
 
         dispWorld(rsv, pm)
         dispSimInfo(rsv, pm, (i, a, o, r, R))
         updateAnimation(rsv)
+
+        s = s_
 
         if isEnd(pm, s)
             println("reached the terminal state")
@@ -186,7 +198,9 @@ function simulate(pm, alg)
             b = updateBelief(pm, b, a, o)
         end
 
-        reinitialize(alg, a, o)
+        if typeof(alg) == UCT || typeof(alg) == POMCP
+            reinitialize(alg, a, o)
+        end
     end
 
     saveAnimation(rsv, repeat = true)
@@ -222,12 +236,19 @@ end
 
 srand(uint(time()))
 
-pm = RockSample(5, 5, seed = rand(1:typemax(Int64)))
+#pm = RockSample(5, 5, seed = rand(1:typemax(Int64)))
+#pm = RockSample(5, 5, seed = rand(1:1024))
+pm = RockSample(3, 3, seed = 263)
 
-#alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 10.)
-alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 10.)
+#alg = QMDP(pm, "rocksample_qmdp.pcy")
+#alg = QMDP("rocksample_qmdp.pcy")
+#alg = FIB(pm, "rocksample_fib.pcy")
+#alg = FIB("rocksample_fib.pcy")
 
-#test(pm, alg)
-simulate(pm, alg)
+alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+#alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+
+test(pm, alg)
+#simulate(pm, alg)
 
 

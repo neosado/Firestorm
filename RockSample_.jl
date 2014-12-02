@@ -6,14 +6,18 @@
 module RockSample_
 
 import Base.isequal, Base.hash, Base.copy
+import Base.start, Base.done, Base.next
 
 export RockSample, RSState, RSAction, RSObservation, RSBelief, RSBeliefVector, RSBeliefParticles, History
+export RSStateIter
 export reward, observe, nextState, isEnd, sampleBelief, updateBelief
+export prob_tran, prob_obs
 export updateInternalStates, rock2ind
 
 
 using POMDP_
 using Base.Test
+using Iterators
 
 
 import POMDP_.reward
@@ -22,12 +26,72 @@ import POMDP_.nextState
 import POMDP_.isEnd
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
+import POMDP_.prob_tran
+import POMDP_.prob_obs
 
 
 immutable RSState <: State
 
     Position::(Int64, Int64)
     RockTypes::Vector{Symbol}
+end
+
+type RSStateIter
+
+    nrow::Int64
+    ncol::Int64
+    nrocks::Int64
+    rock_types_array
+
+    function RSStateIter(nrow, ncol, nrocks)
+
+        self = new()
+
+        self.nrow = nrow
+        self.ncol = ncol
+        self.nrocks = nrocks
+        self.rock_types_array = collect(product(repeated([:good, :bad], nrocks)...))
+
+        return self
+    end
+end
+
+function start(iter::RSStateIter)
+
+    state = (1, 1, 1)
+end
+
+function done(iter::RSStateIter, state)
+
+    row, col, nr = state
+
+    if col >iter.ncol
+        return true
+    end
+
+    return false
+end
+
+function next(iter::RSStateIter, state)
+
+    row, col, nr = state
+
+    item = RSState((row, col), [iter.rock_types_array[nr]...])
+
+    if nr + 1 > 2^iter.nrocks
+        nr = 1
+
+        if row + 1 > iter.nrow
+            row = 1
+            col += 1
+        else
+            row += 1
+        end
+    else
+        nr += 1
+    end
+
+    return item, (row, col, nr)
 end
 
 immutable RSAction <: Action
@@ -56,16 +120,13 @@ type RockSample <: POMDP
     n::Int64
     k::Int64
 
-    states::Vector{RSState}
+    states::RSStateIter
     nState::Int64
 
     actions::Vector{RSAction}
     nAction::Int64
 
-    p_actions::Vector{RSAction}
-    npAction::Int64
-
-    obs::Vector{RSObservation}
+    observations::Vector{RSObservation}
     nObservation::Int64
 
     rover_pos::(Int64, Int64)
@@ -78,20 +139,20 @@ type RockSample <: POMDP
 
     function RockSample(n::Int64, k::Int64; seed::Int64 = 0)
 
-        if seed != 0
-            srand(uint(seed))
-        else
-            srand(uint(time()))
-        end
-
         self = new()
 
-        self.seed = uint(seed)
+        if seed != 0
+            self.seed = uint(seed)
+        else
+            self.seed = uint(time())
+        end
+
+        srand(self.seed)
 
         self.n = n
         self.k = k
 
-        self.states = []
+        self.states = RSStateIter(n, n, k)
         self.nState = n * n * 2 ^ k
 
         self.actions = [RSAction(:north), RSAction(:south), RSAction(:east), RSAction(:west), RSAction(:sample)]
@@ -100,13 +161,7 @@ type RockSample <: POMDP
         end
         self.nAction = 5 + k
 
-        self.p_actions = [RSAction(:north), RSAction(:south), RSAction(:east), RSAction(:west), RSAction(:sample)]
-        for i = 1:k
-            push!(self.p_actions, RSAction(symbol("check$i")))
-        end
-        self.npAction = 5 + k
-
-        self.obs = [RSObservation(:none), RSObservation(:good), RSObservation(:bad)]
+        self.observations = [RSObservation(:none), RSObservation(:good), RSObservation(:bad)]
         self.nObservation = 3
 
         # XXX Debug
@@ -140,7 +195,7 @@ type RockSample <: POMDP
 end
 
 
-isCheckAction(a::RSAction) = (length(string(a.action)) == 6 && string(a.action)[1:5] == "check")
+isCheckAction(a::RSAction) = (length(string(a.action)) > 5 && string(a.action)[1:5] == "check")
 
 act2rock(a::RSAction) = symbol("rock" * string(string(a.action)[6]))
 act2rockIndex(a::RSAction) = int(string(string(a.action)[6]))
@@ -175,9 +230,9 @@ function prob_tran(rs::RockSample, s::RSState, a::RSAction, s_::RSState)
             prob = 1.
         end
     elseif a.action == :west
-        if col != 1 && row == row_ && col - 1 == col_ && rock_types == rock_types_
+        if row == row_ && col != 1 && col - 1 == col_ && rock_types == rock_types_
             prob = 1.
-        elseif col == 1 && row == row_ && col == col_ && rock_types == rock_types_
+        elseif row == row_ && col == 1 && col == col_ && rock_types == rock_types_
             prob = 1.
         end
     elseif a.action == :sample
@@ -192,8 +247,6 @@ function prob_tran(rs::RockSample, s::RSState, a::RSAction, s_::RSState)
                 if rock_types == rock_types_
                     prob = 1.
                 end
-            elseif rock_types == rock_types_
-                prob = 1.
             end
         end
     else
@@ -219,13 +272,13 @@ function prob_obs(rs::RockSample, s_::RSState, a::RSAction, o::RSObservation)
         rock_index = rock2ind(rock)
 
         rock_loc = rs.rock_locs[rock]
-        # XXX Debug
-        #rock_type = rock_types_[rock_index]
-        rock_type = rs.rock_types[rock]
+        rock_type = rock_types_[rock_index]
 
         dist = sqrt((pos_[1] - rock_loc[1])^2 + (pos_[2] - rock_loc[2])^2)
 
-        eta = exp(-dist)
+        # XXX
+        #eta = exp(-dist)
+        eta = 2^(-dist/20)
 
         p_correct = 0.5 + 0.5 * eta
 
@@ -269,10 +322,8 @@ function reward(rs::RockSample, s::RSState, a::RSAction)
     elseif a.action == :sample
         if haskey(rs.loc2rock, (row, col))
             rock = rs.loc2rock[(row, col)]
-            # XXX Debug
-            #rock_index = rock2ind(rock)
-            #rock_type = rock_types[rock_index]
-            rock_type = rs.rock_types[rock]
+            rock_index = rock2ind(rock)
+            rock_type = rock_types[rock_index]
 
             if rock_type == :good
                 r = 10.
@@ -292,7 +343,7 @@ function observe(rs::RockSample, s_::RSState, a::RSAction)
     rv = rand()
     p_cs = 0.
 
-    for o in rs.obs
+    for o in rs.observations
         p_cs += prob_obs(rs, s_, a, o)
 
         if rv < p_cs
@@ -370,7 +421,7 @@ function sampleBelief(rs::RockSample, b::RSBeliefParticles)
 
     s = b.particles[rand(1:length(b.particles))]
 
-    return s
+    return copy(s)
 end
 
 
@@ -399,7 +450,7 @@ function updateBelief(rs::RockSample, b::RSBeliefVector, a::RSAction, o::RSObser
 
     @test length(belief_) == rs.nState
     sum_ = 0.
-    for v = values(belief_)
+    for v in values(belief_)
         sum_ += v
     end
     @test_approx_eq sum_ 1.

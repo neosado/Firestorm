@@ -174,8 +174,10 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
         initialize(alg)
     end
 
-    Qv = zeros(pm.nAction)
-    Qv_prev = zeros(pm.nAction)
+    Qv = Dict{Action, Float64}()
+    for a in pm.actions
+        Qv[a] = 0.
+    end
 
     for i = 1:alg.nloop_max
         #println("iteration: ", i)
@@ -191,28 +193,36 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
         #println("Q: ", alg.Q)
         #println()
 
-        for j = 1:pm.nAction
-            a = pm.actions[j]
-            Qv[j] = alg.Q[(h, a)]
+        res = 0.
+        for a in pm.actions
+            Qv_prev = Qv[a]
+            Qv[a] = alg.Q[(h, a)]
+            res += (Qv[a] - Qv_prev)^2
         end
 
-        err = norm(Qv - Qv_prev)
-        if i > alg.nloop_min &&  err < alg.eps
+        if i > alg.nloop_min &&  sqrt(res) < alg.eps
             break
         end
-
-        Qv_prev = copy(Qv)
     end
 
-    Qv = zeros(pm.nAction)
-    for i = 1:pm.nAction
-        a = pm.actions[i]
-        Qv[i] = alg.Q[(h, a)]
+    Qv_max = -Inf
+    for a in pm.actions
+        Qv[a] = alg.Q[(h, a)]
+
+        if Qv[a] > Qv_max
+            Qv_max = Qv[a]
+        end
     end
 
-    a = pm.actions[argmax(Qv)]
+    actions = Action[]
+    for a in pm.actions
+        if Qv[a] == Qv_max
+            push!(actions, a)
+        end
+    end
+    action = actions[rand(1:length(actions))]
 
-    return a, Qv
+    return action, Qv
 end
 
 
