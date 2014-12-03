@@ -98,6 +98,8 @@ function visInit(wfv::WildfireVisualizer, wm::Wildfire)
     fuel_map = ax2[:imshow](wm.F, cmap = "Greens", alpha = 0.7, vmin = 0, vmax = wm.F_max, interpolation = "none")
     push!(artists, fuel_map)
 
+    # TODO add colorbar
+
 
     fig[:canvas][:draw]()
 

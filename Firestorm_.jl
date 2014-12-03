@@ -132,11 +132,21 @@ type Firestorm <: POMDP
     observations::Vector{FSObservation}
     nObservation::Int64
 
+    reward_functype::Symbol
+
+
     wm::Wildfire
 
     uav_pos::(Int64, Int64)
 
-    reward_functype::Symbol
+
+    R::Array{Float64, 2}
+    R_min::Float64
+    R_max::Float64
+
+    U::Array{Float64, 2}
+    U_min::Float64
+    U_max::Float64
 
 
     function Firestorm(n::Int64; seed::Int64 = 0)
@@ -169,6 +179,8 @@ type Firestorm <: POMDP
         self.observations = [FSObservation(:notburning), FSObservation(:burning)]
         self.nObservation = 2
 
+        self.reward_functype = :type3
+
         self.wm = Wildfire(n, n, seed = seed)
 
         # UAV location
@@ -183,7 +195,13 @@ type Firestorm <: POMDP
             self.uav_pos = (rand(1:nrow), ncol)
         end
 
-        self.reward_functype = :type3
+        self.R = zeros(nrow, ncol)
+        self.R_min = 0
+        self.R_max = 30
+
+        self.U = zeros(nrow, ncol)
+        self.U_min = 0
+        self.U_max = 30
 
         return self
     end

@@ -26,10 +26,14 @@ type FIB <: Solver
     gamma_::Float64
     eps::Float64
 
+    verbose::Int64
 
-    function FIB(;model::Union(POMDP, Nothing) = nothing, policy_file::ASCIIString = "default.pcy", gamma_::Float64 = 0.9, eps::Float64 = 1.e-3)
+
+    function FIB(;model::Union(POMDP, Nothing) = nothing, policy_file::ASCIIString = "default.pcy", gamma_::Float64 = 0.9, eps::Float64 = 1.e-3, verbose::Int64 = 0)
 
         self = new()
+
+        self.verbose = verbose
 
         if model != nothing
             self.gamma_ = gamma_
@@ -53,9 +57,9 @@ type FIB <: Solver
         return self
     end
 
-    FIB(model::POMDP, policy_file::ASCIIString = "default.pcy"; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3) = FIB(model = model, policy_file = policy_file, gamma_ = gamma_, eps = eps)
+    FIB(model::POMDP, policy_file::ASCIIString = "default.pcy"; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3, verbose::Int64 = 0) = FIB(model = model, policy_file = policy_file, gamma_ = gamma_, eps = eps, verbose = verbose)
 
-    FIB(policy_file::ASCIIString; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3) = FIB(model = nothing, policy_file = policy_file, gamma_ = gamma_, eps = eps)
+    FIB(policy_file::ASCIIString; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3, verbose::Int64 = 0) = FIB(model = nothing, policy_file = policy_file, gamma_ = gamma_, eps = eps, verbose = verbose)
 end
 
 
@@ -115,6 +119,10 @@ function learn(alg::FIB, pm::POMDP; policy_file::ASCIIString = "default.pcy")
         end
 
         niter += 1
+
+        if alg.verbose > 0
+            println("number of iterations: $niter, error: $res")
+        end
 
         if sqrt(res) < alg.eps
             break

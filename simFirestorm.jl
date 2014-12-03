@@ -67,7 +67,7 @@ end
 
 function getInitialState(pm::Firestorm)
 
-    return FSState(pm.uav_pos, pm.B)
+    return FSState(pm.uav_pos, pm.wm.B)
 end
 
 
@@ -161,7 +161,7 @@ function simulate(pm, alg; wait = false)
         b = getInitialBelief(pm)
     end
 
-    simulate_wildfire(pm, max(pm.nrow, pm.ncol))
+    simulate_wildfire(pm.wm, max(pm.nrow, pm.ncol))
 
     println("time: 0, s: ", s.Position)
 
@@ -193,7 +193,7 @@ function simulate(pm, alg; wait = false)
 
         o = observe(pm, s_, a)
 
-        r = reward(pm, s, a)
+        r = reward(pm, s, a, s_)
         R += r
 
         Qv__ = Float64[]
@@ -203,6 +203,7 @@ function simulate(pm, alg; wait = false)
         println("time: ", i, ", s: ", s.Position, ", Qv: ", Qv__, ", a: ", a.action, ", o: ", o.observation, ", r: ", r, ", R: ", R, ", s_: ", s_.Position)
 
         updateInternalStates(pm, s, a, s_)
+        wfNextState(pm.wm)
 
         visInit(fsv, pm)
         visUpdate(fsv, pm, (i, a, o, r, R))
@@ -265,18 +266,18 @@ srand(uint(time()))
 #pm = Firestorm(5, seed = rand(1:1024))
 pm = Firestorm(3, seed = 837)
 
-#alg = QMDP(pm, "firestorm_qmdp.pcy")
+alg = QMDP(pm, "firestorm_qmdp.pcy", verbose = 1)
 #alg = QMDP("firestorm_qmdp.pcy")
-#alg = FIB(pm, "firestorm_fib.pcy")
+#alg = FIB(pm, "firestorm_fib.pcy", verbose = 1)
 #alg = FIB("firestorm_fib.pcy")
 
 #alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
-alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+#alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
 
 #wm = Wildfire(5, 5, p_fire = 0.06)
 #simulate_wildfire(wm, 60, draw = true)
 
 #test(pm, alg)
-simulate(pm, alg, wait = true)
+simulate(pm, alg, wait = false)
 
 

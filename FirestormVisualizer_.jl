@@ -111,8 +111,8 @@ function visInit(fsv::FirestormVisualizer, fs::Firestorm)
         fig = fsv.fig
         ax1 = fsv.ax1
         ax2 = fsv.ax2
-        fsv.ax3 = ax3
-        fsv.ax4 = ax4
+        ax3 = fsv.ax3
+        ax4 = fsv.ax4
 
         for artist in fsv.artists
             artist[:set_visible](false)
@@ -121,10 +121,10 @@ function visInit(fsv::FirestormVisualizer, fs::Firestorm)
 
     artists = PyObject[]
 
-    wildfire_map = ax1[:imshow](fs.B, cmap = "Reds", alpha = 0.5, interpolation = "none")
+    wildfire_map = ax1[:imshow](fs.wm.B, cmap = "Reds", alpha = 0.5, interpolation = "none")
     push!(artists, wildfire_map)
 
-    fuel_map = ax2[:imshow](fs.F, cmap = "Greens", alpha = 0.7, vmin = 0, vmax = fs.F_max, interpolation = "none")
+    fuel_map = ax2[:imshow](fs.wm.F, cmap = "Greens", alpha = 0.7, vmin = 0, vmax = fs.wm.F_max, interpolation = "none")
     push!(artists, fuel_map)
 
     reward_map = ax3[:imshow](fs.R, cmap = "Greys_r", alpha = 0.7, vmin = fs.R_min, vmax = fs.R_max, interpolation = "none")
@@ -133,8 +133,10 @@ function visInit(fsv::FirestormVisualizer, fs::Firestorm)
     utility_map = ax4[:imshow](fs.U, cmap = "Greys_r", alpha = 0.7, vmin = fs.U_min, vmax = fs.U_max, interpolation = "none")
     push!(artists, utility_map)
 
+    # TODO add colorbar
 
-    uav_marker = ax[:plot](fs.uav_pos[2], fs.uav_pos[1], "b^", markefsize = 100 / fs.n)
+
+    uav_marker = ax1[:plot](fs.uav_pos[2] - 1, fs.uav_pos[1] - 1, "b^", markersize = 50 / min(fs.nrow, fs.ncol))
     append!(artists, uav_marker)
 
 
@@ -150,7 +152,7 @@ function visUpdate(fsv::FirestormVisualizer, fs::Firestorm)
 
     fig = fsv.fig
 
-    text = fig[:text](0.5, 0.2, "$(fs.nrow) x $(fs.ncol) grid, seed: $(fs.seed)", horizontalalignment = "center", verticalalignment = "top")
+    text = fig[:text](0.5, 0.065, "$(fs.nrow) x $(fs.ncol) grid, seed: $(fs.seed)", horizontalalignment = "center", verticalalignment = "top")
     push!(fsv.artists, text)
 
     fig[:canvas][:draw]()
@@ -169,7 +171,7 @@ function visUpdate(fsv::FirestormVisualizer, fs::Firestorm, sim::(Int64, FSActio
     r = sim[4]
     R = sim[5]
 
-    text = fig[:text](0.5, 0.2, "timestep: $timestep, action: $action, observation: $observation, reward: $(int(r)), total reward: $(int(R))", horizontalalignment = "center", verticalalignment = "top")
+    text = fig[:text](0.5, 0.065, "timestep: $timestep, action: $action, observation: $observation, reward: $(int(r)), total reward: $(int(R))", horizontalalignment = "center", verticalalignment = "top")
     push!(fsv.artists, text)
 
     fig[:canvas][:draw]()

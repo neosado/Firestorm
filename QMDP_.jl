@@ -26,10 +26,14 @@ type QMDP <: Solver
     gamma_::Float64
     eps::Float64
 
+    verbose::Int64
 
-    function QMDP(;model::Union(POMDP, Nothing) = nothing, policy_file::ASCIIString = "default.pcy", gamma_::Float64 = 0.9, eps::Float64 = 1.e-3)
+
+    function QMDP(;model::Union(POMDP, Nothing) = nothing, policy_file::ASCIIString = "default.pcy", gamma_::Float64 = 0.9, eps::Float64 = 1.e-3, verbose::Int64 = 0)
 
         self = new()
+
+        self.verbose = verbose
 
         if model != nothing
             self.gamma_ = gamma_
@@ -53,9 +57,9 @@ type QMDP <: Solver
         return self
     end
 
-    QMDP(model::POMDP, policy_file::ASCIIString = "default.pcy"; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3) = QMDP(model = model, policy_file = policy_file, gamma_ = gamma_, eps = eps)
+    QMDP(model::POMDP, policy_file::ASCIIString = "default.pcy"; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3, verbose::Int64 = 0) = QMDP(model = model, policy_file = policy_file, gamma_ = gamma_, eps = eps, verbose = verbose)
 
-    QMDP(policy_file::ASCIIString; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3) = QMDP(model = nothing, policy_file = policy_file, gamma_ = gamma_, eps = eps)
+    QMDP(policy_file::ASCIIString; gamma_::Float64 = 0.9, eps::Float64 = 1.e-3, verbose::Int64 = 0) = QMDP(model = nothing, policy_file = policy_file, gamma_ = gamma_, eps = eps, verbose = verbose)
 end
 
 
@@ -110,6 +114,10 @@ function learn(alg::QMDP, pm::POMDP; policy_file::ASCIIString = "default.pcy")
         end
 
         niter += 1
+
+        if alg.verbose > 0
+            println("number of iterations: $niter, error: $res")
+        end
 
         if sqrt(res) < alg.eps
             break
