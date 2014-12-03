@@ -3,16 +3,8 @@ Project Firestorm
 
 UAV Wildfire Surveillance Mission Research
 
-Models:
-CryingBaby
-RockSample
-Firestorm
-
-Methods:
-QMDP
-FIB
-PO-UCT
-POMCP
+Models: CryingBaby, RockSample, Firestorm  
+Methods: QMDP, FIB, PO-UCT, POMCP
 
 The code is written in [Julia](http://julialang.org). You need to install Julia to run this code.
 
