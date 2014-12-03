@@ -11,7 +11,7 @@ The code is written in [Julia](http://julialang.org). You need to install Julia 
 #### Test Cases
 
 Run crying baby example  
-`$ julia simBaby.jl`
+`$ julia simCryingBaby.jl`
 
 Run rock sample example  
 `$ julia simRockSample.jl`
