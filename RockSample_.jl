@@ -11,7 +11,7 @@ import Base.start, Base.done, Base.next
 export RockSample, RSState, RSAction, RSObservation, RSBelief, RSBeliefVector, RSBeliefParticles, History
 export RSStateIter
 export reward, observe, nextState, isEnd, sampleBelief, updateBelief
-export prob_tran, prob_obs
+export tranProb, obsProb
 export updateInternalStates, rock2ind
 
 
@@ -26,8 +26,8 @@ import POMDP_.nextState
 import POMDP_.isEnd
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
-import POMDP_.prob_tran
-import POMDP_.prob_obs
+import POMDP_.tranProb
+import POMDP_.obsProb
 
 
 immutable RSState <: State
@@ -41,7 +41,7 @@ type RSStateIter
     nrow::Int64
     ncol::Int64
     nrocks::Int64
-    rock_types_array
+    rock_types_iter
 
     function RSStateIter(nrow, ncol, nrocks)
 
@@ -50,7 +50,7 @@ type RSStateIter
         self.nrow = nrow
         self.ncol = ncol
         self.nrocks = nrocks
-        self.rock_types_array = collect(product(repeated([:good, :bad], nrocks)...))
+        self.rock_types_iter = product(repeated([:good, :bad], nrocks)...)
 
         return self
     end
@@ -58,14 +58,14 @@ end
 
 function start(iter::RSStateIter)
 
-    state = (1, 1, 1)
+    state = (1, 1, start(iter.rock_types_iter))
 end
 
 function done(iter::RSStateIter, state)
 
-    row, col, nr = state
+    row, col, rock_types_iter_state = state
 
-    if col >iter.ncol
+    if col > iter.ncol
         return true
     end
 
@@ -74,12 +74,14 @@ end
 
 function next(iter::RSStateIter, state)
 
-    row, col, nr = state
+    row, col, rock_types_iter_state = state
 
-    item = RSState((row, col), [iter.rock_types_array[nr]...])
+    (rock_types, rock_types_iter_state) = next(iter.rock_types_iter, rock_types_iter_state)
 
-    if nr + 1 > 2^iter.nrocks
-        nr = 1
+    item = RSState((row, col), [rock_types...])
+
+    if done(iter.rock_types_iter, rock_types_iter_state)
+        rock_types_iter_state = start(iter.rock_types_iter)
 
         if row + 1 > iter.nrow
             row = 1
@@ -87,11 +89,9 @@ function next(iter::RSStateIter, state)
         else
             row += 1
         end
-    else
-        nr += 1
     end
 
-    return item, (row, col, nr)
+    return item, (row, col, rock_types_iter_state)
 end
 
 immutable RSAction <: Action
@@ -135,6 +135,8 @@ type RockSample <: POMDP
     rock_locs::Dict{Symbol, (Int64, Int64)}     # rock -> loc
     rock_sampled::Dict{Symbol, Bool}            # rock -> bool
     loc2rock::Dict{(Int64, Int64), Symbol}      # loc -> rock
+
+    reward_functype::Symbol
 
 
     function RockSample(n::Int64, k::Int64; seed::Int64 = 0)
@@ -190,6 +192,8 @@ type RockSample <: POMDP
             end
         end
 
+        self.reward_functype = :type2
+
         return self
     end
 end
@@ -203,7 +207,7 @@ rock2ind(rock::Symbol) = int(string(string(rock)[5]))
 
 
 # P(s' | s, a)
-function prob_tran(rs::RockSample, s::RSState, a::RSAction, s_::RSState)
+function tranProb(rs::RockSample, s::RSState, a::RSAction, s_::RSState)
 
     row, col = s.Position
     rock_types = s.RockTypes
@@ -260,7 +264,7 @@ end
 
 
 # P(o | s', a)
-function prob_obs(rs::RockSample, s_::RSState, a::RSAction, o::RSObservation)
+function obsProb(rs::RockSample, s_::RSState, a::RSAction, o::RSObservation)
 
     pos_ = s_.Position
     rock_types_ = s_.RockTypes
@@ -344,7 +348,7 @@ function observe(rs::RockSample, s_::RSState, a::RSAction)
     p_cs = 0.
 
     for o in rs.observations
-        p_cs += prob_obs(rs, s_, a, o)
+        p_cs += obsProb(rs, s_, a, o)
 
         if rv < p_cs
             return o
@@ -437,10 +441,10 @@ function updateBelief(rs::RockSample, b::RSBeliefVector, a::RSAction, o::RSObser
         sum_ = 0.
 
         for (s, v) in b.belief
-            sum_ += prob_tran(rs, s, a, s_) * v
+            sum_ += tranProb(rs, s, a, s_) * v
         end
 
-        belief_[s_] = prob_obs(rs, s_, a, o) * sum_
+        belief_[s_] = obsProb(rs, s_, a, o) * sum_
         sum_belief += belief_[s_]
     end
 

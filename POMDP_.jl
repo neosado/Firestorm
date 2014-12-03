@@ -8,7 +8,7 @@ import Base.isequal, Base.hash
 
 export POMDP, State, Action, Observation, Belief, History
 export reward, observe, nextState, isEnd, sampleBelief, updateBelief
-export prob_tran, prob_obs
+export tranProb, obsProb
 
 
 abstract POMDP
@@ -19,8 +19,8 @@ nextState(pm::POMDP) = error("$(typeof(pm)) does not implement nextState()")
 isEnd(pm::POMDP) = error("$(typeof(pm)) does not implement isEnd()")
 sampleBelief(pm::POMDP) = error("$(typeof(pm)) does not implement sampleBelief()")
 updateBelief(pm::POMDP) = error("$(typeof(pm)) does not implement updateBelief()")
-prob_tran(pm::POMDP) = error("$(typeof(pm)) does not implement prob_tran()")
-prob_obs(pm::POMDP) = error("$(typeof(pm)) does not implement prob_obs()")
+tranProb(pm::POMDP) = error("$(typeof(pm)) does not implement tranProb()")
+obsProb(pm::POMDP) = error("$(typeof(pm)) does not implement obsProb()")
 
 
 abstract State

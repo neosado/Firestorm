@@ -91,11 +91,19 @@ function learn(alg::QMDP, pm::POMDP; policy_file::ASCIIString = "default.pcy")
                         end
                     end
 
-                    sum_ += prob_tran(pm, s, a, s_) * max_
+                    if pm.reward_functype == :type2
+                        sum_ += tranProb(pm, s, a, s_) * max_
+                    elseif pm.reward_functype == :type3
+                        sum_ += tranProb(pm, s, a, s_) * (reward(pm, s, a, s_) + alg.gamma_ * max_)
+                    end
                 end
 
                 alpha_prev = alpha[a][s]
-                alpha[a][s] = reward(pm, s, a) + alg.gamma_ * sum_
+                if pm.reward_functype == :type2
+                    alpha[a][s] = reward(pm, s, a) + alg.gamma_ * sum_
+                elseif pm.reward_functype == :type3
+                    alpha[a][s] = sum_
+                end
 
                 res += (alpha[a][s] - alpha_prev)^2
             end

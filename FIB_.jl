@@ -88,7 +88,11 @@ function learn(alg::FIB, pm::POMDP; policy_file::ASCIIString = "default.pcy")
                         sum_ = 0.
 
                         for s_ in pm.states
-                            sum_ += prob_obs(pm, s_, a, o) * prob_tran(pm, s, a, s_) * alpha[a_][s_]
+                            if pm.reward_functype == :type2
+                                sum_ += obsProb(pm, s_, a, o) * tranProb(pm, s, a, s_) * alpha[a_][s_]
+                            elseif pm.reward_functype == :type3
+                                sum_ += obsProb(pm, s_, a, o) * tranProb(pm, s, a, s_) * (reward(pm, s, a, s_) + alg.gamma_ * alpha[a_][s_])
+                            end
                         end
 
                         if sum_ > max_
@@ -100,7 +104,11 @@ function learn(alg::FIB, pm::POMDP; policy_file::ASCIIString = "default.pcy")
                 end
 
                 alpha_prev = alpha[a][s]
-                alpha[a][s] = reward(pm, s, a) + alg.gamma_ * sum_o
+                if pm.reward_functype == :type2
+                    alpha[a][s] = reward(pm, s, a) + alg.gamma_ * sum_o
+                elseif pm.reward_functype == :type3
+                    alpha[a][s] = sum_o
+                end
 
                 res += (alpha[a][s] - alpha_prev)^2
             end

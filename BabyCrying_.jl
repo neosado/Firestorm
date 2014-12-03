@@ -9,7 +9,7 @@ import Base.isequal, Base.hash
 
 export BabyCrying, BCState, BCAction, BCObservation, BCBelief, BCBeliefVector, BCBeliefParticles, History
 export reward, observe, nextState, isEnd, sampleBelief, updateBelief
-export prob_tran, prob_obs
+export tranProb, obsProb
 
 
 using POMDP_
@@ -22,8 +22,8 @@ import POMDP_.nextState
 import POMDP_.isEnd
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
-import POMDP_.prob_tran
-import POMDP_.prob_obs
+import POMDP_.tranProb
+import POMDP_.obsProb
 
 
 immutable BCState <: State
@@ -61,6 +61,8 @@ type BabyCrying <: POMDP
     observations::Vector{BCObservation}
     nObservation::Int64
 
+    reward_functype::Symbol
+
 
     function BabyCrying()
 
@@ -75,6 +77,8 @@ type BabyCrying <: POMDP
         self.observations = [BCObservation(:notcrying), BCObservation(:crying)]
         self.nObservation = 2
 
+        self.reward_functype = :type2
+
         srand(uint(time()))
 
         return self
@@ -83,7 +87,7 @@ end
 
 
 # P(s' | s, a)
-function prob_tran(bc::BabyCrying, s::BCState, a::BCAction, s_::BCState)
+function tranProb(bc::BabyCrying, s::BCState, a::BCAction, s_::BCState)
 
     # if feed the baby, the baby stops being hungry at the next time step
     # if not hungry and not feed, 10% chance that the baby may become hungry at the next time step
@@ -130,7 +134,7 @@ end
 
 
 # P(o | s', a)
-function prob_obs(bc::BabyCrying, s_::BCState, a::BCAction, o::BCObservation)
+function obsProb(bc::BabyCrying, s_::BCState, a::BCAction, o::BCObservation)
 
     # 10% chance that the baby cries when not hungry
     # 80% chance that the baby cries when hungry
@@ -191,7 +195,7 @@ function observe(bc::BabyCrying, s_::BCState, a::BCAction)
     p_cs = 0.
 
     for o in bc.observations
-        p_cs += prob_obs(bc, s_, a, o)
+        p_cs += obsProb(bc, s_, a, o)
 
         if rv < p_cs
             return o
@@ -210,7 +214,7 @@ function nextState(bc::BabyCrying, s::BCState, a::BCAction)
 
     for i = 1:bc.nState
         s_ = bc.states[i]
-        p_cs += prob_tran(bc, s, a, s_)
+        p_cs += tranProb(bc, s, a, s_)
 
         if rv < p_cs
             return s_
@@ -263,10 +267,10 @@ function updateBelief(bc::BabyCrying, b::BCBeliefVector, a::BCAction, o::BCObser
         sum_ = 0.
 
         for (s, v) in b.belief
-            sum_ += prob_tran(bc, s, a, s_) * v
+            sum_ += tranProb(bc, s, a, s_) * v
         end
 
-        belief_[s_] = prob_obs(bc, s_, a, o) * sum_
+        belief_[s_] = obsProb(bc, s_, a, o) * sum_
         sum_belief += belief_[s_]
     end
 

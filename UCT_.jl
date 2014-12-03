@@ -86,7 +86,11 @@ function Generative(pm::POMDP, s::State, a::Action)
     s_ = nextState(pm, s, a)
     @test s_ != nothing
     o = observe(pm, s_, a)
-    r = reward(pm, s, a)
+    if pm.reward_functype == :type2
+        r = reward(pm, s, a)
+    elseif pm.reward_functype == :type3
+        r = reward(pm, s, a, s_)
+    end
 
     return s_, o, r
 end

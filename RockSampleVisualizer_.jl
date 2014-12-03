@@ -3,15 +3,21 @@
 
 module RockSampleVisualizer_
 
-export RockSampleVisualizer, dispWorld, dispInitInfo, dispSimInfo, updateAnimation, saveAnimation
+export RockSampleVisualizer, visInit, visUpdate, updateAnimation, saveAnimation
 
 
+using Visualizer_
 using RockSample_
 
 using PyCall
 using PyPlot
 
 @pyimport matplotlib.animation as ani
+
+import Visualizer_.visInit
+import Visualizer_.visUpdate
+import Visualizer_.updateAnimation
+import Visualizer_.saveAnimation
 
 
 type RockSampleVisualizer
@@ -42,7 +48,7 @@ type RockSampleVisualizer
 end
 
 
-function dispWorld(rsv::RockSampleVisualizer, rs::RockSample)
+function visInit(rsv::RockSampleVisualizer, rs::RockSample)
 
     if rsv.fig == nothing
         fig = figure()
@@ -108,7 +114,7 @@ function dispWorld(rsv::RockSampleVisualizer, rs::RockSample)
 end
 
 
-function dispInitInfo(rsv::RockSampleVisualizer, rs::RockSample)
+function visUpdate(rsv::RockSampleVisualizer, rs::RockSample)
 
     fig = rsv.fig
     ax = rsv.ax
@@ -122,7 +128,7 @@ function dispInitInfo(rsv::RockSampleVisualizer, rs::RockSample)
 end
 
 
-function dispSimInfo(rsv::RockSampleVisualizer, rs::RockSample, sim::(Int64, RSAction, RSObservation, Float64, Float64))
+function visUpdate(rsv::RockSampleVisualizer, rs::RockSample, sim::(Int64, RSAction, RSObservation, Float64, Float64))
 
     fig = rsv.fig
     ax = rsv.ax
@@ -152,7 +158,7 @@ function updateAnimation(rsv::RockSampleVisualizer)
 end
 
 
-function saveAnimation(rsv::RockSampleVisualizer; interval::Int64 = 1000, repeat::Bool =false, filename::ASCIIString = "rocksample.mp4")
+function saveAnimation(rsv::RockSampleVisualizer; interval::Int64 = 1000, repeat::Bool = false, filename::ASCIIString = "rocksample.mp4")
 
     im_ani = ani.ArtistAnimation(rsv.fig, rsv.ims, interval = interval, repeat = repeat, repeat_delay = interval * 5)
     im_ani[:save](filename)

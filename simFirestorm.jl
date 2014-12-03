@@ -1,7 +1,8 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
-# Date: 11/04/2014
+# Date: 12/02/2014
 
-using RockSample_
+using Wildfire_
+using Firestorm_
 
 using QMDP_
 using FIB_
@@ -9,7 +10,8 @@ using UCT_
 using POMCP_
 
 using Util
-using RockSampleVisualizer_
+using WildfireVisualizer_
+using FirestormVisualizer_
 
 using Iterators
 using Base.Test
@@ -17,7 +19,7 @@ using Base.Test
 
 function sampleParticles(pm, b, nsample = 100000)
 
-    B = RSState[]
+    B = FSState[]
 
     for n = 1:nsample
         rv = rand()
@@ -34,14 +36,14 @@ function sampleParticles(pm, b, nsample = 100000)
         end
     end
 
-    return RSBeliefParticles(B)
+    return FSBeliefParticles(B)
 end
 
 
 function beliefParticles2Vector(pm, B)
 
-    count_ = Dict{RSState, Int64}()
-    belief = Dict{RSState, Float64}()
+    count_ = Dict{FSState, Int64}()
+    belief = Dict{FSState, Float64}()
 
     for s in pm.states
         count_[s] = 0
@@ -59,43 +61,36 @@ function beliefParticles2Vector(pm, B)
         belief[s] = count_[s] / sum_
     end
 
-    return RSBeliefVector(belief)
+    return FSBeliefVector(belief)
 end
 
 
-function getInitialState(pm::RockSample)
+function getInitialState(pm::Firestorm)
 
-    rock_types = Array(Symbol, pm.k)
-
-    for (rock, rock_type) in pm.rock_types
-        rock_index = rock2ind(rock)
-        rock_types[rock_index] = rock_type
-    end
-
-    return RSState(pm.rover_pos, rock_types)
+    return FSState(pm.uav_pos, pm.B)
 end
 
 
-function getInitialBelief(pm::RockSample; bParticles::Bool = false)
+function getInitialBelief(pm::Firestorm; bParticles::Bool = false)
 
     if bParticles
         B = FSState[]
 
-        for rock_types in product(repeated([:good, :bad], pm.nrocks)...)
-            push!(B, RSState(pm.rover_pos, [rock_types...]))
+        for B_array in product(repeated([false, true], pm.nrow * pm.ncol)...)
+            push!(B, FSState(pm.uav_pos, reshape([B_array...], (pm.nrow, pm.ncol))))
         end
 
         return FSBeliefParticles(B)
     else
-        belief = Dict{RSState, Float64}()
+        belief = Dict{FSState, Float64}()
 
         sum_ = 0
         for s in pm.states
-            if s.Position == pm.rover_pos
-                belief[RSState(s.Position, s.RockTypes)] = 1.
+            if s.Position == pm.uav_pos
+                belief[FSState(s.Position, s.B)] = 1.
                 sum_ += 1
             else
-                belief[RSState(s.Position, s.RockTypes)] = 0.
+                belief[FSState(s.Position, s.B)] = 0.
             end
         end
 
@@ -103,7 +98,7 @@ function getInitialBelief(pm::RockSample; bParticles::Bool = false)
             belief[s] /= sum_
         end
 
-        return RSBeliefVector(belief)
+        return FSBeliefVector(belief)
     end
 end
 
@@ -127,9 +122,36 @@ function test(pm, alg)
 end
 
 
+function simulate_wildfire(wm, ts_max = 1; draw = false)
+
+    if draw
+        wfv = WildfireVisualizer()
+
+        visInit(wfv, wm)
+        visUpdate(wfv, wm)
+        updateAnimation(wfv)
+    end
+
+    for t = 1:ts_max
+        wfNextState(wm)
+
+        if draw
+            visInit(wfv, wm)
+            visUpdate(wfv, wm, t)
+            updateAnimation(wfv)
+        end
+    end
+
+    if draw
+        saveAnimation(wfv)
+        readline()
+    end
+end
+
+
 function simulate(pm, alg; wait = false)
 
-    rsv = RockSampleVisualizer(wait = wait)
+    fsv = FirestormVisualizer(wait = wait)
 
     s = getInitialState(pm)
 
@@ -139,13 +161,15 @@ function simulate(pm, alg; wait = false)
         b = getInitialBelief(pm)
     end
 
+    simulate_wildfire(pm, max(pm.nrow, pm.ncol))
+
+    println("time: 0, s: ", s.Position)
+
+    visInit(fsv, pm)
+    visUpdate(fsv, pm)
+    updateAnimation(fsv)
+
     R = 0.
-
-    println("time: 0, s: ", s.Position, " ", s.RockTypes)
-
-    visInit(rsv, pm)
-    visUpdate(rsv, pm)
-    updateAnimation(rsv)
 
     for i = 1:50
         #println("T: ", alg.T)
@@ -176,13 +200,13 @@ function simulate(pm, alg; wait = false)
         for a__ in  pm.actions
             push!(Qv__, round(Qv[a__], 2))
         end
-        println("time: ", i, ", s: ", s.Position, " ", s.RockTypes, ", Qv: ", Qv__, ", a: ", a.action, ", o: ", o.observation, ", r: ", r, ", R: ", R, ", s_: ", s_.Position, " ", s_.RockTypes)
+        println("time: ", i, ", s: ", s.Position, ", Qv: ", Qv__, ", a: ", a.action, ", o: ", o.observation, ", r: ", r, ", R: ", R, ", s_: ", s_.Position)
 
         updateInternalStates(pm, s, a, s_)
 
-        visInit(rsv, pm)
-        visUpdate(rsv, pm, (i, a, o, r, R))
-        updateAnimation(rsv)
+        visInit(fsv, pm)
+        visUpdate(fsv, pm, (i, a, o, r, R))
+        updateAnimation(fsv)
 
         s = s_
 
@@ -192,7 +216,7 @@ function simulate(pm, alg; wait = false)
         end
 
         if typeof(alg) == POMCP
-            b = updateBelief(pm, RSBeliefParticles(getParticles(alg, a, o)))
+            b = updateBelief(pm, FSBeliefParticles(getParticles(alg, a, o)))
         else
             b = updateBelief(pm, b, a, o)
         end
@@ -202,30 +226,32 @@ function simulate(pm, alg; wait = false)
         end
     end
 
-    saveAnimation(rsv, repeat = true)
+    saveAnimation(fsv, repeat = true)
 end
 
 
-function isFeasible(pm::RockSample, s::RSState, a::RSAction)
+function isFeasible(pm::Firestorm, s::FSState, a::FSAction)
 
     row, col = s.Position
 
     if a.action == :north && row == 1
         return false
-    elseif a.action == :south && row == pm.n
+    elseif a.action == :south && row == pm.nrow
         return false
     elseif a.action == :west && col == 1
+        return false
+    elseif a.action == :east && col == pm.ncol
         return false
     end
 
     return true
 end
 
-function default_policy(pm::RockSample, s::RSState)
+function default_policy(pm::Firestorm, s::FSState)
 
     a = pm.actions[rand(1:length(pm.actions))]
 
-    while !isFeasible(pm::RockSample, s, a)
+    while !isFeasible(pm::Firestorm, s, a)
         a = pm.actions[rand(1:length(pm.actions))]
     end
 
@@ -235,19 +261,22 @@ end
 
 srand(uint(time()))
 
-#pm = RockSample(5, 5, seed = rand(1:typemax(Int64)))
-#pm = RockSample(5, 5, seed = rand(1:1024))
-pm = RockSample(3, 3, seed = 263)
+#pm = Firestorm(5, seed = rand(1:typemax(Int64)))
+#pm = Firestorm(5, seed = rand(1:1024))
+pm = Firestorm(3, seed = 837)
 
-#alg = QMDP(pm, "rocksample_qmdp.pcy")
-#alg = QMDP("rocksample_qmdp.pcy")
-#alg = FIB(pm, "rocksample_fib.pcy")
-#alg = FIB("rocksample_fib.pcy")
+#alg = QMDP(pm, "firestorm_qmdp.pcy")
+#alg = QMDP("firestorm_qmdp.pcy")
+#alg = FIB(pm, "firestorm_fib.pcy")
+#alg = FIB("firestorm_fib.pcy")
 
-alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
-#alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+#alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+
+#wm = Wildfire(5, 5, p_fire = 0.06)
+#simulate_wildfire(wm, 60, draw = true)
 
 #test(pm, alg)
-simulate(pm, alg)
+simulate(pm, alg, wait = true)
 
 
