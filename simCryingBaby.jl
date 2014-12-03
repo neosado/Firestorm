@@ -1,17 +1,18 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 11/04/2014
 
-using BabyCrying_
+using CryingBaby_
 
 using QMDP_
 using FIB_
+
 using UCT_
 using POMCP_
 
 
 function sampleParticles(pm, b, nsample = 100000)
 
-    B = BCState[]
+    B = CBState[]
 
     for n = 1:nsample
         rv = rand()
@@ -28,17 +29,18 @@ function sampleParticles(pm, b, nsample = 100000)
         end
     end
 
-    return BCBeliefParticles(B)
+    return CBBeliefParticles(B)
 end
 
 
 function beliefParticles2Vector(pm, B)
 
-    count_ = Dict{BCState, Int64}()
-    belief = Dict{BCState, Float64}()
+    count_ = Dict{CBState, Int64}()
+    belief = Dict{CBState, Float64}()
 
     for s in pm.states
         count_[s] = 0
+        belief[s] = 0.
     end
 
     sum_ = 0
@@ -52,14 +54,14 @@ function beliefParticles2Vector(pm, B)
         belief[s] = count_[s] / sum_
     end
 
-    return BCBeliefVector(belief)
+    return CBBeliefVector(belief)
 end
 
 
 function test(pm, alg)
 
     prob_hungry = 0.5
-    b = BCBeliefVector([BCState(:nothungry) => 1. - prob_hungry, BCState(:hungry) => prob_hungry])
+    b = CBBeliefVector([CBState(:nothungry) => 1. - prob_hungry, CBState(:hungry) => prob_hungry])
 
     if typeof(alg) == POMCP
         B = sampleParticles(pm, b)
@@ -68,7 +70,7 @@ function test(pm, alg)
 
         a_opt, Qv = selectAction(alg, pm, B)
 
-        b = beliefParticles2Vector(pm, BCBeliefParticles(alg.B[History()]))
+        b = beliefParticles2Vector(pm, CBBeliefParticles(alg.B[History()]))
         #println("b: ", float(map((x) -> x[2], b.belief)))
     else
         a_opt, Qv = selectAction(alg, pm, b)
@@ -83,7 +85,7 @@ end
 function validate(pm, alg)
 
     for p = [0:0.1:1]   # probability of hungry
-        b = BCBeliefVector([BCState(:nothungry) => 1. - p, BCState(:hungry) => p])
+        b = CBBeliefVector([CBState(:nothungry) => 1. - p, CBState(:hungry) => p])
 
         if typeof(alg) == POMCP
             B = sampleParticles(pm, b)
@@ -92,7 +94,7 @@ function validate(pm, alg)
 
             a, Qv = selectAction(alg, pm, B)
 
-            #b = beliefParticles2Vector(pm, BCBeliefParticles(alg.B[History()]))
+            #b = beliefParticles2Vector(pm, CBBeliefParticles(alg.B[History()]))
             #println("b: ", float(map((x) -> x[2], b.belief)))
         else
             a, Qv = selectAction(alg, pm, b)
@@ -109,10 +111,10 @@ end
 
 function simulate_scenario(pm, alg)
 
-    actions = [BCAction(:notfeed), BCAction(:feed), BCAction(:notfeed), BCAction(:notfeed), BCAction(:notfeed)]
-    observations = [BCObservation(:crying), BCObservation(:notcrying), BCObservation(:notcrying), BCObservation(:notcrying), BCObservation(:crying)]
+    actions = [CBAction(:notfeed), CBAction(:feed), CBAction(:notfeed), CBAction(:notfeed), CBAction(:notfeed)]
+    observations = [CBObservation(:crying), CBObservation(:notcrying), CBObservation(:notcrying), CBObservation(:notcrying), CBObservation(:crying)]
 
-    b = BCBeliefVector([BCState(:nothungry) => 0.5, BCState(:hungry) => 0.5])
+    b = CBBeliefVector([CBState(:nothungry) => 0.5, CBState(:hungry) => 0.5])
 
     if typeof(alg) == POMCP
         B = sampleParticles(pm, b)
@@ -144,7 +146,7 @@ function simulate_scenario(pm, alg)
         o = observations[i]
 
         if typeof(alg) == POMCP
-            B = updateBelief(pm, BCBeliefParticles(getParticles(alg, a, o)))
+            B = updateBelief(pm, CBBeliefParticles(getParticles(alg, a, o)))
             b = beliefParticles2Vector(pm, B)
         else
             b = updateBelief(pm, b, a, o)
@@ -162,8 +164,8 @@ end
 
 function simulate(pm, alg)
 
-    s = BCState(:nothungry)
-    b = BCBeliefVector([BCState(:nothungry) => 0.5, BCState(:hungry) => 0.5])
+    s = CBState(:nothungry)
+    b = CBBeliefVector([CBState(:nothungry) => 0.5, CBState(:hungry) => 0.5])
 
     if typeof(alg) == POMCP
         B = sampleParticles(pm, b)
@@ -203,7 +205,7 @@ function simulate(pm, alg)
         R += r
 
         if typeof(alg) == POMCP
-            B = updateBelief(pm, BCBeliefParticles(getParticles(alg, a, o)))
+            B = updateBelief(pm, CBBeliefParticles(getParticles(alg, a, o)))
             b = beliefParticles2Vector(pm, B)
         else
             b = updateBelief(pm, b, a, o)
@@ -220,15 +222,14 @@ function simulate(pm, alg)
 end
 
 
-#srand(uint(time()))
-srand(263)
+srand(uint(time()))
 
-pm = BabyCrying()
+pm = CryingBaby()
 
-#alg = QMDP(pm, "babycrying_qmdp.pcy")
-#alg = QMDP("babycrying_qmdp.pcy")
-#alg = FIB(pm, "babycrying_fib.pcy")
-#alg = FIB("babycrying_fib.pcy")
+#alg = QMDP(pm, "cryingbaby_qmdp.pcy")
+#alg = QMDP("cryingbaby_qmdp.pcy")
+#alg = FIB(pm, "cryingbaby_fib.pcy")
+#alg = FIB("cryingbaby_fib.pcy")
 
 #alg = UCT(depth = 3, nloop_max = 10000, nloop_min = 10000, c = 20.)
 alg = POMCP(depth = 3, nloop_max = 10000, nloop_min = 10000, c = 20.)

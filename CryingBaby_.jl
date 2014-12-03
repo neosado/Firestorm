@@ -3,11 +3,11 @@
 
 # Mykel J. Kochenderfer, Decision Making Under Uncertainty: Theory and Application, MIT Press, 2014.
 
-module BabyCrying_
+module CryingBaby_
 
 import Base.isequal, Base.hash
 
-export BabyCrying, BCState, BCAction, BCObservation, BCBelief, BCBeliefVector, BCBeliefParticles, History
+export CryingBaby, CBState, CBAction, CBObservation, CBBelief, CBBeliefVector, CBBeliefParticles, History
 export reward, observe, nextState, isEnd, sampleBelief, updateBelief
 export tranProb, obsProb
 
@@ -26,55 +26,55 @@ import POMDP_.tranProb
 import POMDP_.obsProb
 
 
-immutable BCState <: State
+immutable CBState <: State
     state::Symbol
 end
 
-immutable BCAction <: Action
+immutable CBAction <: Action
     action::Symbol
 end
 
-immutable BCObservation <: Observation
+immutable CBObservation <: Observation
     observation::Symbol
 end
 
-abstract BCBelief <: Belief
+abstract CBBelief <: Belief
 
-immutable BCBeliefVector <: BCBelief
-    belief::Dict{BCState, Float64}
+immutable CBBeliefVector <: CBBelief
+    belief::Dict{CBState, Float64}
 end
 
-immutable BCBeliefParticles <: BCBelief
-    particles::Vector{BCState}
+immutable CBBeliefParticles <: CBBelief
+    particles::Vector{CBState}
 end
 
 
 # decide when to feed the baby on the basis of whether the baby is crying
-type BabyCrying <: POMDP
+type CryingBaby <: POMDP
 
-    states::Vector{BCState}
+    states::Vector{CBState}
     nState::Int64
 
-    actions::Vector{BCAction}
+    actions::Vector{CBAction}
     nAction::Int64
 
-    observations::Vector{BCObservation}
+    observations::Vector{CBObservation}
     nObservation::Int64
 
     reward_functype::Symbol
 
 
-    function BabyCrying()
+    function CryingBaby()
 
         self = new()
 
-        self.states = [BCState(:nothungry), BCState(:hungry)]
+        self.states = [CBState(:nothungry), CBState(:hungry)]
         self.nState = 2
 
-        self.actions = [BCAction(:notfeed), BCAction(:feed)]
+        self.actions = [CBAction(:notfeed), CBAction(:feed)]
         self.nAction = 2
 
-        self.observations = [BCObservation(:notcrying), BCObservation(:crying)]
+        self.observations = [CBObservation(:notcrying), CBObservation(:crying)]
         self.nObservation = 2
 
         self.reward_functype = :type2
@@ -87,7 +87,7 @@ end
 
 
 # P(s' | s, a)
-function tranProb(bc::BabyCrying, s::BCState, a::BCAction, s_::BCState)
+function tranProb(cb::CryingBaby, s::CBState, a::CBAction, s_::CBState)
 
     # if feed the baby, the baby stops being hungry at the next time step
     # if not hungry and not feed, 10% chance that the baby may become hungry at the next time step
@@ -134,7 +134,7 @@ end
 
 
 # P(o | s', a)
-function obsProb(bc::BabyCrying, s_::BCState, a::BCAction, o::BCObservation)
+function obsProb(cb::CryingBaby, s_::CBState, a::CBAction, o::CBObservation)
 
     # 10% chance that the baby cries when not hungry
     # 80% chance that the baby cries when hungry
@@ -168,7 +168,7 @@ end
 
 
 # R(s, a)
-function reward(bc::BabyCrying, s::BCState, a::BCAction)
+function reward(cb::CryingBaby, s::CBState, a::CBAction)
 
     # hungry: -10
     # feed: -5
@@ -189,13 +189,13 @@ end
 
 
 # o ~ P(O | s', a)
-function observe(bc::BabyCrying, s_::BCState, a::BCAction)
+function observe(cb::CryingBaby, s_::CBState, a::CBAction)
 
     rv = rand()
     p_cs = 0.
 
-    for o in bc.observations
-        p_cs += obsProb(bc, s_, a, o)
+    for o in cb.observations
+        p_cs += obsProb(cb, s_, a, o)
 
         if rv < p_cs
             return o
@@ -207,14 +207,14 @@ end
 
 
 # s' ~ P(S | s, a)
-function nextState(bc::BabyCrying, s::BCState, a::BCAction)
+function nextState(cb::CryingBaby, s::CBState, a::CBAction)
 
     rv = rand()
     p_cs = 0.
 
-    for i = 1:bc.nState
-        s_ = bc.states[i]
-        p_cs += tranProb(bc, s, a, s_)
+    for i = 1:cb.nState
+        s_ = cb.states[i]
+        p_cs += tranProb(cb, s, a, s_)
 
         if rv < p_cs
             return s_
@@ -225,14 +225,14 @@ function nextState(bc::BabyCrying, s::BCState, a::BCAction)
 end
 
 
-function isEnd(bc::BabyCrying, s::BCState)
+function isEnd(cb::CryingBaby, s::CBState)
 
     return false
 end
 
 
 # s ~ b
-function sampleBelief(bc::BabyCrying, b::BCBeliefVector)
+function sampleBelief(cb::CryingBaby, b::CBBeliefVector)
 
     rv = rand()
 
@@ -248,7 +248,7 @@ function sampleBelief(bc::BabyCrying, b::BCBeliefVector)
     @assert false
 end
 
-function sampleBelief(bc::BabyCrying, b::BCBeliefParticles)
+function sampleBelief(cb::CryingBaby, b::CBBeliefParticles)
 
     s = b.particles[rand(1:length(b.particles))]
 
@@ -256,21 +256,21 @@ function sampleBelief(bc::BabyCrying, b::BCBeliefParticles)
 end
 
 # b' = B(b, a, o)
-function updateBelief(bc::BabyCrying, b::BCBeliefVector, a::BCAction, o::BCObservation)
+function updateBelief(cb::CryingBaby, b::CBBeliefVector, a::CBAction, o::CBObservation)
 
     # b'(s') = O(o | s', a) \sum_s T(s' | s, a) b(s)
 
-    belief_ = Dict{BCState, Float64}()
+    belief_ = Dict{CBState, Float64}()
 
     sum_belief = 0.
     for s_ in keys(b.belief)
         sum_ = 0.
 
         for (s, v) in b.belief
-            sum_ += tranProb(bc, s, a, s_) * v
+            sum_ += tranProb(cb, s, a, s_) * v
         end
 
-        belief_[s_] = obsProb(bc, s_, a, o) * sum_
+        belief_[s_] = obsProb(cb, s_, a, o) * sum_
         sum_belief += belief_[s_]
     end
 
@@ -278,17 +278,17 @@ function updateBelief(bc::BabyCrying, b::BCBeliefVector, a::BCAction, o::BCObser
         belief_[s_] /= sum_belief
     end
 
-    @test length(belief_) == bc.nState
+    @test length(belief_) == cb.nState
     sum_ = 0.
     for v in values(belief_)
         sum_ += v
     end
     @test_approx_eq sum_ 1.
 
-    return BCBeliefVector(belief_)
+    return CBBeliefVector(belief_)
 end
 
-function updateBelief(bc::BabyCrying, b::BCBeliefParticles)
+function updateBelief(cb::CryingBaby, b::CBBeliefParticles)
 
     return b
 end
@@ -296,49 +296,49 @@ end
 
 
 
-function isequal(s1::BCState, s2::BCState)
+function isequal(s1::CBState, s2::CBState)
 
     return isequal(s1.state, s2.state)
 end
 
-function ==(s1::BCState, s2::BCState)
+function ==(s1::CBState, s2::CBState)
 
     return (s1.state == s2.state)
 end
 
-function hash(s::BCState, h::Uint64 = zero(Uint64))
+function hash(s::CBState, h::Uint64 = zero(Uint64))
 
     return hash(s.state, h)
 end
 
 
-function isequal(a1::BCAction, a2::BCAction)
+function isequal(a1::CBAction, a2::CBAction)
 
     return isequal(a1.action, a2.action)
 end
 
-function ==(a1::BCAction, a2::BCAction)
+function ==(a1::CBAction, a2::CBAction)
 
     return (a1.action == a2.action)
 end
 
-function hash(a::BCAction, h::Uint64 = zero(Uint64))
+function hash(a::CBAction, h::Uint64 = zero(Uint64))
 
     return hash(a.action, h)
 end
 
 
-function isequal(o1::BCObservation, o2::BCObservation)
+function isequal(o1::CBObservation, o2::CBObservation)
 
     return isequal(o1.observation, o2.observation)
 end
 
-function ==(o1::BCObservation, o2::BCObservation)
+function ==(o1::CBObservation, o2::CBObservation)
 
     return (o1.observation == o2.observation)
 end
 
-function hash(o::BCObservation, h::Uint64 = zero(Uint64))
+function hash(o::CBObservation, h::Uint64 = zero(Uint64))
 
     return hash(o.observation, h)
 end
