@@ -1,9 +1,19 @@
-POMDP
+Project Firestorm
 =====
 
-Implement Monte-Carlo Tree Search(MCTS) methods for POMDP
+UAV Wildfire Surveillance Mission Research
 
-Currently, PO-UCT and POMCP have been implemented.  
+Models:
+CryingBaby
+RockSample
+Firestorm
+
+Methods:
+QMDP
+FIB
+PO-UCT
+POMCP
+
 The code is written in [Julia](http://julialang.org). You need to install Julia to run this code.
 
 #### Test Cases
@@ -13,3 +23,6 @@ Run crying baby example
 
 Run rock sample example  
 `$ julia simRockSample.jl`
+
+Run firestorm example  
+`$ julia simFirestorm.jl`
