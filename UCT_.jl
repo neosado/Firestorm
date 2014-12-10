@@ -245,7 +245,8 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
     end
 
     # XXX Debug
-    dumpTree("mcts.json", Tvis)
+    dumpTree(pm, "mcts.json", Tvis)
+    readline()
 
     Qv_max = -Inf
     for a in pm.actions
@@ -268,7 +269,7 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
 end
 
 
-function dumpTree(output_file::ASCIIString, Tvis::Dict{ASCIIString, Any})
+function dumpTree(pm::POMDP, output_file::ASCIIString, Tvis::Dict{ASCIIString, Any})
 
     function process(Tin, Tout, level; r_prev = 0.)
 
@@ -284,7 +285,14 @@ function dumpTree(output_file::ASCIIString, Tvis::Dict{ASCIIString, Any})
                 process(node["actions"], node_["actions"], level + 1, r_prev = r_prev)
             end
         elseif rem(level, 3) == 1
-            for (action, node) in Tin
+            for a in pm.actions
+                action = string(a.action)
+                if haskey(Tin, action)
+                    node = Tin[action]
+                else
+                    continue
+                end
+
                 node_ = Dict{ASCIIString, Any}()
                 node_["action"] = action
                 node_["N"] = node["N"]
@@ -297,7 +305,14 @@ function dumpTree(output_file::ASCIIString, Tvis::Dict{ASCIIString, Any})
                 process(node["observations"], node_["observations"], level + 1, r_prev = node_["R"])
             end
         elseif rem(level, 3) == 2
-            for (observation, node) in Tin
+            for o in pm.observations
+                observation = string(o.observation)
+                if haskey(Tin, observation)
+                    node = Tin[observation]
+                else
+                    continue
+                end
+
                 node_ = Dict{ASCIIString, Any}()
                 node_["observation"] = observation
                 node_["states"] = Dict{ASCIIString, Any}[]

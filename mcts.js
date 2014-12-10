@@ -1,5 +1,5 @@
-var width = 800,
-    height = 600;
+var width = 1200,
+    height = 800;
 
 var tree = d3.layout.tree()
     .size([width, height])
@@ -22,27 +22,27 @@ d3.json("mcts.json", function(error, json) {
     root.x0 = width / 2;
     root.y0 = 0;
 
-    function collapse(d) {
-        if (d.states) {
-            d._states = d.states;
-            d._states.forEach(collapse);
-            d.states = null;
-        } else if (d.actions) {
-            d._actions = d.actions;
-            d._actions.forEach(collapse);
-            d.actions = null;
-        } else if (d.observations) {
-            d._observations = d.observations;
-            d._observations.forEach(collapse);
-            d.observations = null;
-        }
-    }
-
-    root.states.forEach(collapse);
+    //root.states.forEach(collapse);
 
     update(root);
 });
 
+
+function collapse(d) {
+    if (d.states) {
+        d._states = d.states;
+        d._states.forEach(collapse);
+        d.states = null;
+    } else if (d.actions) {
+        d._actions = d.actions;
+        d._actions.forEach(collapse);
+        d.actions = null;
+    } else if (d.observations) {
+        d._observations = d.observations;
+        d._observations.forEach(collapse);
+        d.observations = null;
+    }
+}
 
 function click(d) {
     if (d.states) {
@@ -68,6 +68,26 @@ function click(d) {
     update(d);
 }
 
+function mouseover(d) {
+    d3.select(this).append("text")
+        .attr("class", "hover")
+        .attr('transform', function(d) { return 'translate(8, 4)'; })
+        .text(function (d) {
+            if (d.name)
+                return d.name
+            else if (d.state)
+                return d.state + ", " + d.N
+            else if (d.action)
+                return d.action + ", " + d.N + ", " + d.r + ", " + d.R
+            else if (d.observation)
+                return d.observation
+        });
+}
+
+function mouseout(d) {
+    d3.select(this).select("text.hover").remove();
+}
+
 function update(source) {
     var nodes = tree.nodes(root).reverse(),
         links = tree.links(nodes);
@@ -83,16 +103,18 @@ function update(source) {
     var nodeEnter = node.enter().append("g")
         .attr("class", "node")
         .attr("transform", function(d) { return "translate(" + source.x0 + "," + source.y0 + ")"; })
-        .on("click", click);
+        .on("click", click)
+        .on("mouseover", mouseover)
+        .on("mouseout", mouseout);
 
     nodeEnter.append("circle")
         .attr("r", 4.5)
-        .attr("style", coloring_cb_node);
+        .attr("style", coloring_rs_node);
 
     nodeEnter.append("text")
         .attr("dx", 8)
         .attr("dy", 4)
-        .text(texting_cb_node)
+        .text(texting_rs_node)
         .style("fill-opacity", 1e-6);
 
 
@@ -102,7 +124,7 @@ function update(source) {
 
     nodeUpdate.select("circle")
         .attr("r", 4.5)
-        .attr("style", coloring_cb_node);
+        .attr("style", coloring_rs_node);
 
     nodeUpdate.select("text")
         .style("fill-opacity", 1);
@@ -188,6 +210,50 @@ function coloring_cb_node(d) {
 }
 
 function texting_cb_node(d) {
+    return ""
+    if (d.state)
+        return d.N
+    else if (d.action)
+        return d.N
+        //return d.r
+        //return d.R
+}
+
+
+function coloring_rs_node(d) {
+    var children;
+
+    colors_for_observations = {"none": "gray", "good": "green", "bad": "red"}
+
+    if (d.state) {
+        style = "fill: purple"
+        children = d.actions
+    } else if (d.action) {
+        if (d.action == "north" || d.action == "south" || d.action == "east" || d.action == "west")
+            style = "stroke: blue"
+        else if (d.action == "sample")
+            style = "stroke: olive"
+        else
+            style = "stroke: orange"
+        children = d.observations
+    } else if (d.observation) {
+        style = "stroke: " + colors_for_observations[d.observation]
+        children = d.states
+    } else if (d.name) {
+        style = "fill: black"
+        children = d.states
+    }
+
+    if (children != null)
+        style += "; stroke-opacity: 0.5; fill-opacity: 0.5"
+    else
+        style += "; stroke-opacity: 0.8; fill-opacity: 0.8"
+
+    return style
+}
+
+function texting_rs_node(d) {
+    return ""
     if (d.state)
         return d.N
     else if (d.action)

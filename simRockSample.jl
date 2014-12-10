@@ -127,9 +127,11 @@ function test(pm, alg)
 end
 
 
-function simulate(pm, alg; wait = false)
+function simulate(pm, alg; draw = true, wait = false)
 
-    rsv = RockSampleVisualizer(wait = wait)
+    if draw
+        rsv = RockSampleVisualizer(wait = wait)
+    end
 
     s = getInitialState(pm)
 
@@ -143,9 +145,11 @@ function simulate(pm, alg; wait = false)
 
     println("time: 0, s: ", s.Position, " ", s.RockTypes)
 
-    visInit(rsv, pm)
-    visUpdate(rsv, pm)
-    updateAnimation(rsv)
+    if draw
+        visInit(rsv, pm)
+        visUpdate(rsv, pm)
+        updateAnimation(rsv)
+    end
 
     for i = 1:50
         #println("T: ", alg.T)
@@ -180,9 +184,11 @@ function simulate(pm, alg; wait = false)
 
         updateInternalStates(pm, s, a, s_)
 
-        visInit(rsv, pm)
-        visUpdate(rsv, pm, (i, a, o, r, R))
-        updateAnimation(rsv)
+        if draw
+            visInit(rsv, pm)
+            visUpdate(rsv, pm, (i, a, o, r, R))
+            updateAnimation(rsv)
+        end
 
         s = s_
 
@@ -202,7 +208,9 @@ function simulate(pm, alg; wait = false)
         end
     end
 
-    saveAnimation(rsv, repeat = true)
+    if draw
+        saveAnimation(rsv, repeat = true)
+    end
 end
 
 
@@ -239,15 +247,15 @@ srand(uint(time()))
 #pm = RockSample(5, 5, seed = rand(1:1024))
 pm = RockSample(3, 3, seed = 263)
 
-#alg = QMDP(pm, "rocksample_qmdp.pcy")
+#alg = QMDP(pm, "rocksample_qmdp.pcy", verbose = 1)
 #alg = QMDP("rocksample_qmdp.pcy")
-#alg = FIB(pm, "rocksample_fib.pcy")
+#alg = FIB(pm, "rocksample_fib.pcy", verbose = 1)
 #alg = FIB("rocksample_fib.pcy")
 
 alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
 #alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
 
 #test(pm, alg)
-simulate(pm, alg)
+simulate(pm, alg, draw = false)
 
 
