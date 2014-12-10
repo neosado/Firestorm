@@ -14,6 +14,7 @@ using POMDP_
 using Util
 
 using Base.Test
+using JSON
 
 
 import MCTS_.selectAction
@@ -114,9 +115,21 @@ function rollout(alg::UCT, pm::POMDP, s::State, h::History, d::Int64)
 end
 
 
-function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64)
+function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64; Troot = nothing)
 
-    if d == 0
+    if Troot != nothing
+        st = string(s)
+
+        if !haskey(Troot, st)
+            Troot[st] = Dict{ASCIIString, Any}()
+            Troot[st]["actions"] = Dict{ASCIIString, Any}()
+            Troot[st]["N"] = 1
+        else
+            Troot[st]["N"] += 1
+        end
+    end
+
+    if d == 0 || isEnd(pm, s)
         return 0
     end
 
@@ -156,15 +169,36 @@ function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64)
 
     #println("Qv: ", round(Qv, 2), ", (a, o): {", a, ", ", o, "}, s_: ", s_, ", r: ", r)
 
-    if isEnd(pm, s_)
-        q = r
-    else
+    if Troot == nothing
         q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1)
+    else
+        act = string(a.action)
+        obs = string(o.observation)
+        ns = string(s_)
+
+        if !haskey(Troot[st]["actions"], act)
+            Troot[st]["actions"][act] = Dict{ASCIIString, Any}()
+            Troot[st]["actions"][act]["observations"] = Dict{ASCIIString, Any}()
+            Troot[st]["actions"][act]["N"] = 0
+            Troot[st]["actions"][act]["r"] = 0.
+        end
+
+        if !haskey(Troot[st]["actions"][act]["observations"], obs)
+            Troot[st]["actions"][act]["observations"][obs] = Dict{ASCIIString, Any}()
+            Troot[st]["actions"][act]["observations"][obs]["states"] = Dict{ASCIIString, Any}()
+        end
+
+        q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1, Troot = Troot[st]["actions"][act]["observations"][obs]["states"])
     end
 
     alg.N[(h, a)] += 1
     alg.Ns[h] += 1
     alg.Q[(h, a)] += (q - alg.Q[(h, a)]) / alg.N[(h, a)]
+
+    if Troot != nothing
+        Troot[st]["actions"][act]["N"] += 1
+        Troot[st]["actions"][act]["r"] += (r - Troot[st]["actions"][act]["r"]) / Troot[st]["actions"][act]["N"]
+    end
 
     return q
 end
@@ -173,6 +207,7 @@ end
 function selectAction(alg::UCT, pm::POMDP, b::Belief)
 
     h = History()
+    Tvis = Dict{ASCIIString, Any}()
 
     if !alg.reuse
         initialize(alg)
@@ -188,7 +223,7 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
 
         s = sampleBelief(pm, b)
 
-        simulate(alg, pm, s, h, alg.depth)
+        simulate(alg, pm, s, h, alg.depth, Troot = Tvis)
 
         #println("h: ", h)
         #println("T: ", alg.T)
@@ -209,6 +244,9 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
         end
     end
 
+    # XXX Debug
+    dumpTree("mcts.json", Tvis)
+
     Qv_max = -Inf
     for a in pm.actions
         Qv[a] = alg.Q[(h, a)]
@@ -227,6 +265,61 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
     action = actions[rand(1:length(actions))]
 
     return action, Qv
+end
+
+
+function dumpTree(output_file::ASCIIString, Tvis::Dict{ASCIIString, Any})
+
+    function process(Tin, Tout, level; r_prev = 0.)
+
+        if rem(level, 3) == 0
+            for (state, node) in Tin
+                node_ = Dict{ASCIIString, Any}()
+                node_["state"] = state
+                node_["N"] = node["N"]
+                node_["actions"] = Dict{ASCIIString, Any}[]
+
+                push!(Tout, node_)
+
+                process(node["actions"], node_["actions"], level + 1, r_prev = r_prev)
+            end
+        elseif rem(level, 3) == 1
+            for (action, node) in Tin
+                node_ = Dict{ASCIIString, Any}()
+                node_["action"] = action
+                node_["N"] = node["N"]
+                node_["r"] = node["r"]
+                node_["R"] = r_prev + node["r"]
+                node_["observations"] = Dict{ASCIIString, Any}[]
+
+                push!(Tout, node_)
+
+                process(node["observations"], node_["observations"], level + 1, r_prev = node_["R"])
+            end
+        elseif rem(level, 3) == 2
+            for (observation, node) in Tin
+                node_ = Dict{ASCIIString, Any}()
+                node_["observation"] = observation
+                node_["states"] = Dict{ASCIIString, Any}[]
+
+                push!(Tout, node_)
+
+                process(node["states"], node_["states"], level + 1, r_prev = r_prev)
+            end
+        end
+    end
+
+    Tout = Dict{ASCIIString, Any}()
+    Tout["name"] = "root"
+    Tout["states"] = Dict{ASCIIString, Any}[]
+
+    process(Tvis, Tout["states"], 0)
+
+    f = open(output_file, "w")
+    JSON.print(f, Tout, 2)
+    close(f)
+
+    return Tout
 end
 
 
