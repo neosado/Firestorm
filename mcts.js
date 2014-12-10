@@ -8,10 +8,10 @@ var tree = d3.layout.tree()
 var diagonal = d3.svg.diagonal();
 
 var svg = d3.select("body").append("svg")
-    .attr("width", width + 100)
-    .attr("height", height + 100)
+    .attr("width", width + 200)
+    .attr("height", height + 40)
     .append("g")
-    .attr("transform", "translate(10,10)");
+    .attr("transform", "translate(100,20)");
 
 var root,
     i = 0,
@@ -71,7 +71,8 @@ function click(d) {
 function mouseover(d) {
     d3.select(this).append("text")
         .attr("class", "hover")
-        .attr('transform', function(d) { return 'translate(8, 4)'; })
+        .attr("text-anchor", "middle")
+        .attr('transform', function(d) { return 'translate(0, -8)'; })
         .text(function (d) {
             if (d.name)
                 return d.name
