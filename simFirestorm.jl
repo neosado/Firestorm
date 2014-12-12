@@ -12,6 +12,7 @@ using POMCP_
 using Util
 using WildfireVisualizer_
 using FirestormVisualizer_
+using MCTSVisualizer_
 
 using Iterators
 using Base.Test
@@ -62,6 +63,24 @@ function beliefParticles2Vector(pm, B)
     end
 
     return FSBeliefVector(belief)
+end
+
+
+function printBelief(pm, alg, b)
+
+    if typeof(alg) == POMCP
+        bv = beliefParticles2Vector(pm, b)
+    else
+        bv = b
+    end
+
+    for s in pm.states
+        if s.Position == pm.uav_pos
+            println(s, ": ", bv.belief[s])
+        else
+            @test bv.belief[s] == 0.
+        end
+    end
 end
 
 
@@ -149,9 +168,11 @@ function simulate_wildfire(wm, ts_max = 1; draw = false)
 end
 
 
-function simulate(pm, alg; wait = false)
+function simulate(pm, alg; draw = true, wait = false)
 
-    fsv = FirestormVisualizer(wait = wait)
+    if draw
+        fsv = FirestormVisualizer(wait = wait)
+    end
 
     s = getInitialState(pm)
 
@@ -160,14 +181,17 @@ function simulate(pm, alg; wait = false)
     else
         b = getInitialBelief(pm)
     end
+    #printBelief(pm, alg, b)
 
     simulate_wildfire(pm.wm, max(pm.nrow, pm.ncol))
 
     println("time: 0, s: ", s.Position)
 
-    visInit(fsv, pm)
-    visUpdate(fsv, pm)
-    updateAnimation(fsv)
+    if draw
+        visInit(fsv, pm)
+        visUpdate(fsv, pm)
+        updateAnimation(fsv)
+    end
 
     R = 0.
 
@@ -205,9 +229,11 @@ function simulate(pm, alg; wait = false)
         updateInternalStates(pm, s, a, s_)
         wfNextState(pm.wm)
 
-        visInit(fsv, pm)
-        visUpdate(fsv, pm, (i, a, o, r, R))
-        updateAnimation(fsv)
+        if draw
+            visInit(fsv, pm)
+            visUpdate(fsv, pm, (i, a, o, r, R))
+            updateAnimation(fsv)
+        end
 
         s = s_
 
@@ -221,32 +247,18 @@ function simulate(pm, alg; wait = false)
         else
             b = updateBelief(pm, b, a, o)
         end
+        #printBelief(pm, alg, b)
 
         if typeof(alg) == UCT || typeof(alg) == POMCP
             reinitialize(alg, a, o)
         end
     end
 
-    saveAnimation(fsv, repeat = true)
-end
-
-
-function isFeasible(pm::Firestorm, s::FSState, a::FSAction)
-
-    row, col = s.Position
-
-    if a.action == :north && row == 1
-        return false
-    elseif a.action == :south && row == pm.nrow
-        return false
-    elseif a.action == :west && col == 1
-        return false
-    elseif a.action == :east && col == pm.ncol
-        return false
+    if draw
+        saveAnimation(fsv, repeat = true)
     end
-
-    return true
 end
+
 
 function default_policy(pm::Firestorm, s::FSState)
 
@@ -266,18 +278,18 @@ srand(uint(time()))
 #pm = Firestorm(5, seed = rand(1:1024))
 pm = Firestorm(3, seed = 837)
 
-alg = QMDP(pm, "firestorm_qmdp.pcy", verbose = 1)
+#alg = QMDP(pm, "firestorm_qmdp.pcy", verbose = 1)
 #alg = QMDP("firestorm_qmdp.pcy")
 #alg = FIB(pm, "firestorm_fib.pcy", verbose = 1)
 #alg = FIB("firestorm_fib.pcy")
 
-#alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
-#alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+#alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
+alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
 
 #wm = Wildfire(5, 5, p_fire = 0.06)
 #simulate_wildfire(wm, 60, draw = true)
 
 #test(pm, alg)
-simulate(pm, alg, wait = false)
+simulate(pm, alg, draw = true, wait = true)
 
 

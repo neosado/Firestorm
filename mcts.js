@@ -139,7 +139,7 @@ function update(source) {
                 else
                     return "circle";
         }))
-        .attr("style", coloring_rs_node);
+        .attr("style", coloring_fs_node);
 
     /*
     nodeEnter.append("text")
@@ -168,7 +168,7 @@ function update(source) {
                 else
                     return "circle";
         }))
-        .attr("style", coloring_rs_node);
+        .attr("style", coloring_fs_node);
 
     /*
     nodeUpdate.select("text")
@@ -325,6 +325,36 @@ function texting_rs_node(d) {
         //return d.R
 }
 */
+
+
+function coloring_fs_node(d) {
+    var children;
+
+    if (d.state) {
+        style = "fill: purple"
+        children = d.actions
+    } else if (d.action) {
+        if (d.action == "north" || d.action == "south" || d.action == "east" || d.action == "west")
+            style = "stroke: blue"
+        children = d.observations
+    } else if (d.observation) {
+        if (d.observation == "notburning")
+            style = "stroke: gray"
+        else if (d.observation == "burning")
+            style = "stroke: red"
+        children = d.states || d.actions
+    } else if (d.name) {
+        style = "fill: black"
+        children = d.states || d.actions
+    }
+
+    if (children != null)
+        style += "; stroke-opacity: 0.5; fill-opacity: 0.5"
+    else
+        style += "; stroke-opacity: 1.0; fill-opacity: 1.0"
+
+    return style
+}
 
 
 /*

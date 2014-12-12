@@ -8,7 +8,7 @@ import Base.start, Base.done, Base.next
 
 export Firestorm, FSState, FSAction, FSObservation, FSBelief, FSBeliefVector, FSBeliefParticles, History
 export FSStateIter
-export reward, observe, nextState, isEnd, sampleBelief, updateBelief
+export reward, observe, nextState, isEnd, isFeasible, sampleBelief, updateBelief
 export tranProb, obsProb
 export updateInternalStates
 
@@ -24,6 +24,7 @@ import POMDP_.reward
 import POMDP_.observe
 import POMDP_.nextState
 import POMDP_.isEnd
+import POMDP_.isFeasible
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
 import POMDP_.tranProb
@@ -325,13 +326,17 @@ function nextState(fs::Firestorm, s::FSState, a::FSAction)
     drow = 0
     dcol = 0
 
-    if a.action == :north && row != 1
+    if a.action == :north
+        @assert row != 1
         drow = -1
-    elseif a.action == :south && row != fs.nrow
+    elseif a.action == :south
+        @assert row != fs.nrow
         drow = 1
-    elseif a.action == :west && col != 1
+    elseif a.action == :west
+        @assert col != 1
         dcol = -1
-    elseif a.action == :east && col != fs.ncol
+    elseif a.action == :east
+        @assert col != fs.ncol
         dcol = 1
     end
 
@@ -345,7 +350,6 @@ function isEnd(fs::Firestorm, s::FSState)
 
     row, col = s.Position
     B = s.B
-
 
     bBurning = B[1, 1]
     bEnd = true
@@ -365,6 +369,24 @@ function isEnd(fs::Firestorm, s::FSState)
     end
 
     return bEnd
+end
+
+
+function isFeasible(fs::Firestorm, s::FSState, a::FSAction)
+
+    row, col = s.Position
+
+    if a.action == :north && row == 1
+        return false
+    elseif a.action == :south && row == fs.nrow
+        return false
+    elseif a.action == :west && col == 1
+        return false
+    elseif a.action == :east && col == fs.ncol
+        return false
+    end
+
+    return true
 end
 
 
