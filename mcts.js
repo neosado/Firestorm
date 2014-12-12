@@ -1,3 +1,6 @@
+var datafile = document.getElementById("mctsVisualizer").getAttribute("datafile")
+var collapse_flag = document.getElementById("mctsVisualizer").getAttribute("collapse") || false
+
 var width = 1200,
     height = 800;
 
@@ -17,12 +20,17 @@ var root,
     i = 0,
     duration = 750;
 
-d3.json("mcts.json", function(error, json) {
+d3.json(datafile, function(error, json) {
     root = json
     root.x0 = width / 2;
     root.y0 = 0;
 
-    //root.states.forEach(collapse);
+    if (collapse_flag) {
+        if (datafile.search("sim") != -1)
+            root.states.forEach(collapse);
+        else if (datafile.search("hist") != -1)
+            root.actions.forEach(collapse);
+    }
 
     update(root);
 });
@@ -51,13 +59,13 @@ function click(d) {
     } else if (d._states) {
         d.states = d._states;
         d._states = null;
-    } else if (d.actions) {
+    } else if (d.actions && d.actions.length != 0) {
         d._actions = d.actions;
         d.actions = null;
     } else if (d._actions) {
         d.actions = d._actions;
         d._actions = null;
-    } else if (d.observations) {
+    } else if (d.observations && d.observations.length != 0) {
         d._observations = d.observations;
         d.observations = null;
     } else if (d._observations) {
@@ -75,13 +83,22 @@ function mouseover(d) {
         .attr('transform', function(d) { return 'translate(0, -8)'; })
         .text(function (d) {
             if (d.name)
-                return d.name
+                if (typeof d.N !== "undefined")
+                    return d.name + ", " + d.N
+                else
+                    return d.name
             else if (d.state)
                 return d.state + ", " + d.N
-            else if (d.action)
-                return d.action + ", " + d.N + ", " + d.r + ", " + d.R
-            else if (d.observation)
-                return d.observation
+            else if (d.action) {
+                if (typeof d.Q !== "undefined")
+                    return d.action + ", " + d.N + ", " + d.Q.toPrecision(4)
+                else
+                    return d.action + ", " + d.N + ", " + d.r + ", " + d.R
+            } else if (d.observation)
+                if (typeof d.N !== "undefined")
+                    return d.observation +  ", " + d.N
+                else
+                    return d.observation
         });
 }
 
@@ -108,27 +125,55 @@ function update(source) {
         .on("mouseover", mouseover)
         .on("mouseout", mouseout);
 
+    /*
     nodeEnter.append("circle")
         .attr("r", 4.5)
         .attr("style", coloring_rs_node);
+    */
 
+    nodeEnter.append("path")
+        .attr("d", d3.svg.symbol()
+            .type(function(d) {
+                if (d.action)
+                    return "square";
+                else
+                    return "circle";
+        }))
+        .attr("style", coloring_rs_node);
+
+    /*
     nodeEnter.append("text")
         .attr("dx", 8)
         .attr("dy", 4)
         .text(texting_rs_node)
         .style("fill-opacity", 1e-6);
+    */
 
 
     var nodeUpdate = node.transition()
         .duration(duration)
         .attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
 
+    /*
     nodeUpdate.select("circle")
         .attr("r", 4.5)
         .attr("style", coloring_rs_node);
+    */
 
+    nodeUpdate.select("path")
+        .attr("d", d3.svg.symbol()
+            .type(function(d) {
+                if (d.action)
+                    return "square";
+                else
+                    return "circle";
+        }))
+        .attr("style", coloring_rs_node);
+
+    /*
     nodeUpdate.select("text")
         .style("fill-opacity", 1);
+    */
 
 
     var nodeExit = node.exit().transition()
@@ -136,11 +181,25 @@ function update(source) {
         .attr("transform", function(d) { return "translate(" + source.x + "," + source.y + ")"; })
         .remove();
 
+    /*
     nodeExit.select("circle")
         .attr("r", 1e-6);
+    */
 
+    nodeExit.select("path")
+        .attr("d", d3.svg.symbol()
+            .size(1e-6)
+            .type(function(d) {
+                if (d.action)
+                    return "square";
+                else
+                    return "circle";
+        }));
+
+    /*
     nodeExit.select("text")
         .style("fill-opacity", 1e-6);
+    */
 
 
     var link = svg.selectAll("path.link")
@@ -181,9 +240,9 @@ function coloring_cb_node(d) {
             return "fill: red; fill-opacity: 0.5"
     } else if (d.state) {
         if (d.state.search("nothungry") != -1)
-            return "fill: white; stroke: red; stroke-opacity: 0.8"
+            return "fill: white; stroke: red; stroke-opacity: 1.0"
         else
-            return "fill: red; fill-opacity: 0.8"
+            return "fill: red; fill-opacity: 1.0"
     } else if (d.action && d.observations != null) {
         if (d.action.search("notfeed") != -1)
             return "fill: white; stroke: blue; stroke-opacity: 0.5"
@@ -191,9 +250,9 @@ function coloring_cb_node(d) {
             return "fill: blue; fill-opacity: 0.5"
     } else if (d.action) {
         if (d.action.search("notfeed") != -1)
-            return "fill: white; stroke: blue; stroke-opacity: 0.8"
+            return "fill: white; stroke: blue; stroke-opacity: 1.0"
         else
-            return "fill: blue; fill-opacity: 0.8"
+            return "fill: blue; fill-opacity: 1.0"
     } else if (d.observation && d.states != null) {
         if (d.observation.search("notcrying") != -1)
             return "fill: white; stroke: orange; stroke-opacity: 0.5"
@@ -201,15 +260,16 @@ function coloring_cb_node(d) {
             return "fill: orange; fill-opacity: 0.5"
     } else if (d.observation) {
         if (d.observation.search("notcrying") != -1)
-            return "fill: white; stroke: orange; stroke-opacity: 0.8"
+            return "fill: white; stroke: orange; stroke-opacity: 1.0"
         else
-            return "fill: orange; fill-opacity: 0.8"
+            return "fill: orange; fill-opacity: 1.0"
     } else if (d.name && d.states != null)
         return "fill: black; fill-opacity: 0.5"
     else if (d.name)
-        return "fill: black; fill-opacity: 0.8"
+        return "fill: black; fill-opacity: 1.0"
 }
 
+/*
 function texting_cb_node(d) {
     return ""
     if (d.state)
@@ -219,6 +279,7 @@ function texting_cb_node(d) {
         //return d.r
         //return d.R
 }
+*/
 
 
 function coloring_rs_node(d) {
@@ -239,20 +300,21 @@ function coloring_rs_node(d) {
         children = d.observations
     } else if (d.observation) {
         style = "stroke: " + colors_for_observations[d.observation]
-        children = d.states
+        children = d.states || d.actions
     } else if (d.name) {
         style = "fill: black"
-        children = d.states
+        children = d.states || d.actions
     }
 
     if (children != null)
         style += "; stroke-opacity: 0.5; fill-opacity: 0.5"
     else
-        style += "; stroke-opacity: 0.8; fill-opacity: 0.8"
+        style += "; stroke-opacity: 1.0; fill-opacity: 1.0"
 
     return style
 }
 
+/*
 function texting_rs_node(d) {
     return ""
     if (d.state)
@@ -262,6 +324,7 @@ function texting_rs_node(d) {
         //return d.r
         //return d.R
 }
+*/
 
 
 /*

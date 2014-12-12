@@ -12,6 +12,7 @@ export POMCP, selectAction, reinitialize, initialize, getParticles
 using MCTS_
 using POMDP_
 using Util
+using MCTSVisualizer_
 
 using Base.Test
 
@@ -44,8 +45,10 @@ type POMCP <: MCTS
 
     reuse::Bool
 
+    visualizer::Union(MCTSVisualizer, Nothing)
 
-    function POMCP(;depth::Int64 = 3, default_policy::Function = pi_0, nloop_max::Int64 = 10000, nloop_min::Int64 = 10000, eps::Float64 = 1.e-3, c::Float64 = 1., gamma_::Float64 = 0.9, rgamma_::Float64 = 0.9)
+
+    function POMCP(;depth::Int64 = 3, default_policy::Function = pi_0, nloop_max::Int64 = 10000, nloop_min::Int64 = 10000, eps::Float64 = 1.e-3, c::Float64 = 1., gamma_::Float64 = 0.9, rgamma_::Float64 = 0.9, visualizer::Union(MCTSVisualizer, Nothing) = nothing)
 
         self = new()
 
@@ -72,6 +75,8 @@ type POMCP <: MCTS
 
         self.reuse = false
 
+        self.visualizer = visualizer
+
         srand(int(time()))
 
         return self
@@ -80,14 +85,22 @@ end
 
 
 # \pi_0
-pi_0(pm::POMDP, s::State) = pm.actions[rand(1:length(pm.actions))]
+function pi_0(pm::POMDP, s::State)
+    
+    a = pm.actions[rand(1:length(pm.actions))]
+
+    while !isFeasible(pm, s, a)
+        a = pm.actions[rand(1:length(pm.actions))]
+    end
+
+    return a
+end
 
 
 # s', o, r ~ G(s, a)
 function Generative(pm::POMDP, s::State, a::Action)
 
     s_ = nextState(pm, s, a)
-    @test s_ != nothing
     o = observe(pm, s_, a)
     if pm.reward_functype == :type2
         r = reward(pm, s, a)
@@ -106,6 +119,7 @@ function rollout(alg::POMCP, pm::POMDP, s::State, h::History, d::Int64)
     end
 
     a = alg.default_policy(pm, s)
+    @assert isFeasible(pm, s, a)
 
     s_, o, r = Generative(pm, s, a)
 
@@ -119,7 +133,11 @@ end
 
 function simulate(alg::POMCP, pm::POMDP, s::State, h::History, d::Int64)
 
-    if d == 0
+    if alg.visualizer != nothing
+        updateTree(alg.visualizer, :start_sim, s)
+    end
+
+    if d == 0 || isEnd(pm, s)
         return 0
     end
 
@@ -146,7 +164,9 @@ function simulate(alg::POMCP, pm::POMDP, s::State, h::History, d::Int64)
     for i = 1:pm.nAction
         a = pm.actions[i]
 
-        if alg.N[(h, a)] == 0
+        if !isFeasible(pm, s, a)
+            Qv[i] = -Inf
+        elseif alg.N[(h, a)] == 0
             Qv[i] = Inf
         else
             Qv[i] = alg.Q[(h, a)] + alg.c * sqrt(log(alg.Ns[h]) / alg.N[(h, a)])
@@ -159,11 +179,11 @@ function simulate(alg::POMCP, pm::POMDP, s::State, h::History, d::Int64)
 
     #println("Qv: ", round(Qv, 2), ", (a, o): {", a, ", ", o, "}, s_: ", s_, ", r: ", r)
 
-    if isEnd(pm, s_)
-        q = r
-    else
-        q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1)
+    if alg.visualizer != nothing
+        updateTree(alg.visualizer, :before_sim, s, a, o)
     end
+
+    q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1)
 
     if !haskey(alg.B, h)
         alg.B[h] = [s]
@@ -175,11 +195,19 @@ function simulate(alg::POMCP, pm::POMDP, s::State, h::History, d::Int64)
     alg.Ns[h] += 1
     alg.Q[(h, a)] += (q - alg.Q[(h, a)]) / alg.N[(h, a)]
 
+    if alg.visualizer != nothing
+        updateTree(alg.visualizer, :after_sim, s, a, r, q, alg.N[(h, a)], alg.Ns[h], alg.Q[(h, a)])
+    end
+
     return q
 end
 
 
 function selectAction(alg::POMCP, pm::POMDP, b::Belief)
+
+    if alg.visualizer != nothing
+        initTree(alg.visualizer)
+    end
 
     h = History()
 
@@ -204,7 +232,6 @@ function selectAction(alg::POMCP, pm::POMDP, b::Belief)
         #println("N: ", alg.N)
         #println("Ns: ", alg.Ns)
         #println("Q: ", alg.Q)
-        #println("B: ", alg.B)
         #println()
 
         res = 0.
@@ -235,6 +262,10 @@ function selectAction(alg::POMCP, pm::POMDP, b::Belief)
         end
     end
     action = actions[rand(1:length(actions))]
+
+    if alg.visualizer != nothing
+        saveTree(alg.visualizer, pm)
+    end
 
     return action, Qv
 end
@@ -276,6 +307,10 @@ function reinitialize(alg::POMCP, a::Action, o::Observation)
     alg.B = B_new
 
     alg.reuse = true
+
+    if alg.visualizer != nothing
+        alg.visualizer.b_hist_acc = true
+    end
 end
 
 
@@ -288,6 +323,10 @@ function initialize(alg::POMCP)
     alg.B = Dict{History, Vector{State}}()
 
     alg.reuse = false
+
+    if alg.visualizer != nothing
+        alg.visualizer.b_hist_acc = false
+    end
 end
 
 

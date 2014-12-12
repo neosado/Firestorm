@@ -8,7 +8,7 @@ module CryingBaby_
 import Base.isequal, Base.hash
 
 export CryingBaby, CBState, CBAction, CBObservation, CBBelief, CBBeliefVector, CBBeliefParticles, History
-export reward, observe, nextState, isEnd, sampleBelief, updateBelief
+export reward, observe, nextState, isEnd, isFeasible, sampleBelief, updateBelief
 export tranProb, obsProb
 
 
@@ -20,6 +20,7 @@ import POMDP_.reward
 import POMDP_.observe
 import POMDP_.nextState
 import POMDP_.isEnd
+import POMDP_.isFeasible
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
 import POMDP_.tranProb
@@ -231,6 +232,12 @@ function isEnd(cb::CryingBaby, s::CBState)
 end
 
 
+function isFeasible(cb::CryingBaby, s::CBState, a::CBAction)
+
+    return true
+end
+
+
 # s ~ b
 function sampleBelief(cb::CryingBaby, b::CBBeliefVector)
 
@@ -254,6 +261,7 @@ function sampleBelief(cb::CryingBaby, b::CBBeliefParticles)
 
     return s
 end
+
 
 # b' = B(b, a, o)
 function updateBelief(cb::CryingBaby, b::CBBeliefVector, a::CBAction, o::CBObservation)

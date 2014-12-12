@@ -7,7 +7,7 @@ module POMDP_
 import Base.isequal, Base.hash
 
 export POMDP, State, Action, Observation, Belief, History
-export reward, observe, nextState, isEnd, sampleBelief, updateBelief
+export reward, observe, nextState, isEnd, isFeasible, sampleBelief, updateBelief
 export tranProb, obsProb
 
 
@@ -17,6 +17,7 @@ reward(pm::POMDP) = error("$(typeof(pm)) does not implement reward()")
 observe(pm::POMDP) = error("$(typeof(pm)) does not implement observe()")
 nextState(pm::POMDP) = error("$(typeof(pm)) does not implement nextState()")
 isEnd(pm::POMDP) = error("$(typeof(pm)) does not implement isEnd()")
+isFeasible(pm::POMDP) = error("$(typeof(pm)) does not implement isFeasible()")
 sampleBelief(pm::POMDP) = error("$(typeof(pm)) does not implement sampleBelief()")
 updateBelief(pm::POMDP) = error("$(typeof(pm)) does not implement updateBelief()")
 tranProb(pm::POMDP) = error("$(typeof(pm)) does not implement tranProb()")

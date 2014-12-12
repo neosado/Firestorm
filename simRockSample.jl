@@ -5,11 +5,13 @@ using RockSample_
 
 using QMDP_
 using FIB_
+
 using UCT_
 using POMCP_
 
 using Util
 using RockSampleVisualizer_
+using MCTSVisualizer_
 
 using Iterators
 using Base.Test
@@ -63,6 +65,24 @@ function beliefParticles2Vector(pm, B)
 end
 
 
+function printBelief(pm, alg, b)
+
+    if typeof(alg) == POMCP
+        bv = beliefParticles2Vector(pm, b)
+    else
+        bv = b
+    end
+
+    for s in pm.states
+        if s.Position == pm.rover_pos
+            println(s, ": ", bv.belief[s])
+        else
+            @test bv.belief[s] == 0.
+        end
+    end
+end
+
+
 function getInitialState(pm::RockSample)
 
     rock_types = Array(Symbol, pm.k)
@@ -79,13 +99,13 @@ end
 function getInitialBelief(pm::RockSample; bParticles::Bool = false)
 
     if bParticles
-        B = FSState[]
+        B = RSState[]
 
-        for rock_types in product(repeated([:good, :bad], pm.nrocks)...)
+        for rock_types in product(repeated([:good, :bad], pm.k)...)
             push!(B, RSState(pm.rover_pos, [rock_types...]))
         end
 
-        return FSBeliefParticles(B)
+        return RSBeliefParticles(B)
     else
         belief = Dict{RSState, Float64}()
 
@@ -140,6 +160,7 @@ function simulate(pm, alg; draw = true, wait = false)
     else
         b = getInitialBelief(pm)
     end
+    #printBelief(pm, alg, b)
 
     R = 0.
 
@@ -161,6 +182,30 @@ function simulate(pm, alg; draw = true, wait = false)
 
         a, Qv = selectAction(alg, pm, b)
 
+        # XXX debug
+        #Qv = Dict{RSAction, Float64}()
+        #for a__ in  pm.actions
+        #    Qv[a__] = 0.
+        #end
+        #if i == 1
+        #    a = RSAction(:check1)
+        #elseif i == 2
+        #    a = RSAction(:check2)
+        #elseif i == 3
+        #    a = RSAction(:check3)
+        #else
+        #    a, Qv = selectAction(alg, pm, b)
+        #end
+        #if rem(i, 4) == 1
+        #    a = RSAction(:check1)
+        #elseif rem(i, 4) == 2
+        #    a = RSAction(:check2)
+        #elseif rem(i, 4) == 3
+        #    a = RSAction(:check3)
+        #elseif rem(i, 4) == 0
+        #    a, Qv = selectAction(alg, pm, b)
+        #end
+
         #println("T: ", alg.T)
         #println("N: ", alg.N)
         #println("Ns: ", alg.Ns)
@@ -169,7 +214,6 @@ function simulate(pm, alg; draw = true, wait = false)
         #println()
 
         s_ = nextState(pm, s, a)
-        @test s_ != nothing
 
         o = observe(pm, s_, a)
 
@@ -202,6 +246,7 @@ function simulate(pm, alg; draw = true, wait = false)
         else
             b = updateBelief(pm, b, a, o)
         end
+        #printBelief(pm, alg, b)
 
         if typeof(alg) == UCT || typeof(alg) == POMCP
             reinitialize(alg, a, o)
@@ -214,26 +259,11 @@ function simulate(pm, alg; draw = true, wait = false)
 end
 
 
-function isFeasible(pm::RockSample, s::RSState, a::RSAction)
-
-    row, col = s.Position
-
-    if a.action == :north && row == 1
-        return false
-    elseif a.action == :south && row == pm.n
-        return false
-    elseif a.action == :west && col == 1
-        return false
-    end
-
-    return true
-end
-
 function default_policy(pm::RockSample, s::RSState)
 
     a = pm.actions[rand(1:length(pm.actions))]
 
-    while !isFeasible(pm::RockSample, s, a)
+    while !isFeasible(pm, s, a)
         a = pm.actions[rand(1:length(pm.actions))]
     end
 
@@ -252,10 +282,10 @@ pm = RockSample(3, 3, seed = 263)
 #alg = FIB(pm, "rocksample_fib.pcy", verbose = 1)
 #alg = FIB("rocksample_fib.pcy")
 
-alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
-#alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20.)
+#alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
+alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
 
 #test(pm, alg)
-simulate(pm, alg, draw = false)
+simulate(pm, alg, draw = true, wait = true)
 
 

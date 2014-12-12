@@ -12,9 +12,9 @@ export UCT, selectAction, reinitialize, initialize
 using MCTS_
 using POMDP_
 using Util
+using MCTSVisualizer_
 
 using Base.Test
-using JSON
 
 
 import MCTS_.selectAction
@@ -44,8 +44,10 @@ type UCT <: MCTS
 
     reuse::Bool
 
+    visualizer::Union(MCTSVisualizer, Nothing)
 
-    function UCT(;depth::Int64 = 3, default_policy::Function = pi_0, nloop_max::Int64 = 10000, nloop_min::Int64 = 10000, eps::Float64 = 1.e-3, c::Float64 = 1., gamma_::Float64 = 0.9, rgamma_::Float64 = 0.9)
+
+    function UCT(;depth::Int64 = 3, default_policy::Function = pi_0, nloop_max::Int64 = 10000, nloop_min::Int64 = 10000, eps::Float64 = 1.e-3, c::Float64 = 1., gamma_::Float64 = 0.9, rgamma_::Float64 = 0.9, visualizer::Union(MCTSVisualizer, Nothing) = nothing)
 
         self = new()
 
@@ -70,6 +72,8 @@ type UCT <: MCTS
 
         self.reuse = false
 
+        self.visualizer = visualizer
+
         srand(int(time()))
 
         return self
@@ -78,14 +82,22 @@ end
 
 
 # \pi_0
-pi_0(pm::POMDP, s::State) = pm.actions[rand(1:length(pm.actions))]
+function pi_0(pm::POMDP, s::State)
+    
+    a = pm.actions[rand(1:length(pm.actions))]
+
+    while !isFeasible(pm, s, a)
+        a = pm.actions[rand(1:length(pm.actions))]
+    end
+
+    return a
+end
 
 
 # s', o, r ~ G(s, a)
 function Generative(pm::POMDP, s::State, a::Action)
 
     s_ = nextState(pm, s, a)
-    @test s_ != nothing
     o = observe(pm, s_, a)
     if pm.reward_functype == :type2
         r = reward(pm, s, a)
@@ -104,6 +116,7 @@ function rollout(alg::UCT, pm::POMDP, s::State, h::History, d::Int64)
     end
 
     a = alg.default_policy(pm, s)
+    @assert isFeasible(pm, s, a)
 
     s_, o, r = Generative(pm, s, a)
 
@@ -115,18 +128,10 @@ function rollout(alg::UCT, pm::POMDP, s::State, h::History, d::Int64)
 end
 
 
-function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64; Troot = nothing)
+function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64)
 
-    if Troot != nothing
-        st = string(s)
-
-        if !haskey(Troot, st)
-            Troot[st] = Dict{ASCIIString, Any}()
-            Troot[st]["actions"] = Dict{ASCIIString, Any}()
-            Troot[st]["N"] = 1
-        else
-            Troot[st]["N"] += 1
-        end
+    if alg.visualizer != nothing
+        updateTree(alg.visualizer, :start_sim, s)
     end
 
     if d == 0 || isEnd(pm, s)
@@ -156,7 +161,9 @@ function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64; Troot = n
     for i = 1:pm.nAction
         a = pm.actions[i]
 
-        if alg.N[(h, a)] == 0
+        if !isFeasible(pm, s, a)
+            Qv[i] = -Inf
+        elseif alg.N[(h, a)] == 0
             Qv[i] = Inf
         else
             Qv[i] = alg.Q[(h, a)] + alg.c * sqrt(log(alg.Ns[h]) / alg.N[(h, a)])
@@ -169,35 +176,18 @@ function simulate(alg::UCT, pm::POMDP, s::State, h::History, d::Int64; Troot = n
 
     #println("Qv: ", round(Qv, 2), ", (a, o): {", a, ", ", o, "}, s_: ", s_, ", r: ", r)
 
-    if Troot == nothing
-        q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1)
-    else
-        act = string(a.action)
-        obs = string(o.observation)
-        ns = string(s_)
-
-        if !haskey(Troot[st]["actions"], act)
-            Troot[st]["actions"][act] = Dict{ASCIIString, Any}()
-            Troot[st]["actions"][act]["observations"] = Dict{ASCIIString, Any}()
-            Troot[st]["actions"][act]["N"] = 0
-            Troot[st]["actions"][act]["r"] = 0.
-        end
-
-        if !haskey(Troot[st]["actions"][act]["observations"], obs)
-            Troot[st]["actions"][act]["observations"][obs] = Dict{ASCIIString, Any}()
-            Troot[st]["actions"][act]["observations"][obs]["states"] = Dict{ASCIIString, Any}()
-        end
-
-        q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1, Troot = Troot[st]["actions"][act]["observations"][obs]["states"])
+    if alg.visualizer != nothing
+        updateTree(alg.visualizer, :before_sim, s, a, o)
     end
+
+    q = r + alg.gamma_ * simulate(alg, pm, s_, History([h.history, a, o]), d - 1)
 
     alg.N[(h, a)] += 1
     alg.Ns[h] += 1
     alg.Q[(h, a)] += (q - alg.Q[(h, a)]) / alg.N[(h, a)]
 
-    if Troot != nothing
-        Troot[st]["actions"][act]["N"] += 1
-        Troot[st]["actions"][act]["r"] += (r - Troot[st]["actions"][act]["r"]) / Troot[st]["actions"][act]["N"]
+    if alg.visualizer != nothing
+        updateTree(alg.visualizer, :after_sim, s, a, r, q, alg.N[(h, a)], alg.Ns[h], alg.Q[(h, a)])
     end
 
     return q
@@ -206,8 +196,11 @@ end
 
 function selectAction(alg::UCT, pm::POMDP, b::Belief)
 
+    if alg.visualizer != nothing
+        initTree(alg.visualizer)
+    end
+
     h = History()
-    Tvis = Dict{ASCIIString, Any}()
 
     if !alg.reuse
         initialize(alg)
@@ -223,7 +216,7 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
 
         s = sampleBelief(pm, b)
 
-        simulate(alg, pm, s, h, alg.depth, Troot = Tvis)
+        simulate(alg, pm, s, h, alg.depth)
 
         #println("h: ", h)
         #println("T: ", alg.T)
@@ -244,10 +237,6 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
         end
     end
 
-    # XXX Debug
-    dumpTree(pm, "mcts.json", Tvis)
-    readline()
-
     Qv_max = -Inf
     for a in pm.actions
         Qv[a] = alg.Q[(h, a)]
@@ -265,76 +254,11 @@ function selectAction(alg::UCT, pm::POMDP, b::Belief)
     end
     action = actions[rand(1:length(actions))]
 
-    return action, Qv
-end
-
-
-function dumpTree(pm::POMDP, output_file::ASCIIString, Tvis::Dict{ASCIIString, Any})
-
-    function process(Tin, Tout, level; r_prev = 0.)
-
-        if rem(level, 3) == 0
-            for (state, node) in Tin
-                node_ = Dict{ASCIIString, Any}()
-                node_["state"] = state
-                node_["N"] = node["N"]
-                node_["actions"] = Dict{ASCIIString, Any}[]
-
-                push!(Tout, node_)
-
-                process(node["actions"], node_["actions"], level + 1, r_prev = r_prev)
-            end
-        elseif rem(level, 3) == 1
-            for a in pm.actions
-                action = string(a.action)
-                if haskey(Tin, action)
-                    node = Tin[action]
-                else
-                    continue
-                end
-
-                node_ = Dict{ASCIIString, Any}()
-                node_["action"] = action
-                node_["N"] = node["N"]
-                node_["r"] = node["r"]
-                node_["R"] = r_prev + node["r"]
-                node_["observations"] = Dict{ASCIIString, Any}[]
-
-                push!(Tout, node_)
-
-                process(node["observations"], node_["observations"], level + 1, r_prev = node_["R"])
-            end
-        elseif rem(level, 3) == 2
-            for o in pm.observations
-                observation = string(o.observation)
-                if haskey(Tin, observation)
-                    node = Tin[observation]
-                else
-                    continue
-                end
-
-                node_ = Dict{ASCIIString, Any}()
-                node_["observation"] = observation
-                node_["states"] = Dict{ASCIIString, Any}[]
-
-                push!(Tout, node_)
-
-                process(node["states"], node_["states"], level + 1, r_prev = r_prev)
-            end
-        end
+    if alg.visualizer != nothing
+        saveTree(alg.visualizer, pm)
     end
 
-    Tout = Dict{ASCIIString, Any}()
-    Tout["name"] = "root"
-    Tout["states"] = Dict{ASCIIString, Any}[]
-
-    process(Tvis, Tout["states"], 0)
-
-    f = open(output_file, "w")
-    JSON.print(f, Tout, 2)
-    close(f)
-
-    return Tout
+    return action, Qv
 end
 
 
@@ -366,6 +290,10 @@ function reinitialize(alg::UCT, a::Action, o::Observation)
     alg.Q = Q_new
 
     alg.reuse = true
+
+    if alg.visualizer != nothing
+        alg.visualizer.b_hist_acc = true
+    end
 end
 
 
@@ -377,6 +305,10 @@ function initialize(alg::UCT)
     alg.Q = Dict{(History, Action), Float64}()
 
     alg.reuse = false
+
+    if alg.visualizer != nothing
+        alg.visualizer.b_hist_acc = false
+    end
 end
 
 

@@ -10,7 +10,7 @@ import Base.start, Base.done, Base.next
 
 export RockSample, RSState, RSAction, RSObservation, RSBelief, RSBeliefVector, RSBeliefParticles, History
 export RSStateIter
-export reward, observe, nextState, isEnd, sampleBelief, updateBelief
+export reward, observe, nextState, isEnd, isFeasible, sampleBelief, updateBelief
 export tranProb, obsProb
 export updateInternalStates, rock2ind
 
@@ -24,6 +24,7 @@ import POMDP_.reward
 import POMDP_.observe
 import POMDP_.nextState
 import POMDP_.isEnd
+import POMDP_.isFeasible
 import POMDP_.sampleBelief
 import POMDP_.updateBelief
 import POMDP_.tranProb
@@ -120,6 +121,8 @@ type RockSample <: POMDP
     n::Int64
     k::Int64
 
+    c::Int64
+
     states::RSStateIter
     nState::Int64
 
@@ -139,7 +142,7 @@ type RockSample <: POMDP
     reward_functype::Symbol
 
 
-    function RockSample(n::Int64, k::Int64; seed::Int64 = 0)
+    function RockSample(n::Int64, k::Int64; seed::Int64 = 0, c::Int64 = 20)
 
         self = new()
 
@@ -154,6 +157,8 @@ type RockSample <: POMDP
         self.n = n
         self.k = k
 
+        self.c = c
+
         self.states = RSStateIter(n, n, k)
         self.nState = n * n * 2 ^ k
 
@@ -166,7 +171,7 @@ type RockSample <: POMDP
         self.observations = [RSObservation(:none), RSObservation(:good), RSObservation(:bad)]
         self.nObservation = 3
 
-        # XXX Debug
+        # XXX debug
         #self.rover_pos = (rand(1:n), rand(1:n))
         self.rover_pos = (rand(1:n), rand(1:2))
 
@@ -218,15 +223,11 @@ function tranProb(rs::RockSample, s::RSState, a::RSAction, s_::RSState)
     prob = 0.
 
     if a.action == :north
-        if row != 1 && row - 1 == row_ && col == col_ && rock_types == rock_types_
-            prob = 1.
-        elseif row == 1 && row == row_ && col == col_ && rock_types == rock_types_
+        if row - 1 == row_ && col == col_ && rock_types == rock_types_
             prob = 1.
         end
     elseif a.action == :south
-        if row != rs.n && row + 1 == row_ && col == col_ && rock_types == rock_types_
-            prob = 1.
-        elseif row == rs.n && row == row_ && col == col_ && rock_types == rock_types_
+        if row + 1 == row_ && col == col_ && rock_types == rock_types_
             prob = 1.
         end
     elseif a.action == :east
@@ -234,9 +235,7 @@ function tranProb(rs::RockSample, s::RSState, a::RSAction, s_::RSState)
             prob = 1.
         end
     elseif a.action == :west
-        if row == row_ && col != 1 && col - 1 == col_ && rock_types == rock_types_
-            prob = 1.
-        elseif row == row_ && col == 1 && col == col_ && rock_types == rock_types_
+        if row == row_ && col - 1 == col_ && rock_types == rock_types_
             prob = 1.
         end
     elseif a.action == :sample
@@ -280,9 +279,7 @@ function obsProb(rs::RockSample, s_::RSState, a::RSAction, o::RSObservation)
 
         dist = sqrt((pos_[1] - rock_loc[1])^2 + (pos_[2] - rock_loc[2])^2)
 
-        # XXX
-        #eta = exp(-dist)
-        eta = 2^(-dist/20)
+        eta = exp(-dist / rs.c)
 
         p_correct = 0.5 + 0.5 * eta
 
@@ -315,14 +312,8 @@ function reward(rs::RockSample, s::RSState, a::RSAction)
 
     r = 0.
 
-    if a.action == :north && row == 1
-        r = -100.
-    elseif a.action == :south && row == rs.n
-        r = -100.
-    elseif a.action == :east && col == rs.n
+    if a.action == :east && col == rs.n
         r = 10.
-    elseif a.action == :west && col == 1
-        r = -100.
     elseif a.action == :sample
         if haskey(rs.loc2rock, (row, col))
             rock = rs.loc2rock[(row, col)]
@@ -363,27 +354,24 @@ end
 function nextState(rs::RockSample, s::RSState, a::RSAction)
 
     row, col = s.Position
-    rock_types = copy(s.RockTypes)
+    rock_types = s.RockTypes
 
     if a.action == :north
-        if row != 1
-            row -= 1
-        end
+        @assert row != 1
+        row -= 1
     elseif a.action == :south
-        if row != rs.n
-            row += 1
-        end
+        @assert row != rs.n
+        row += 1
     elseif a.action == :east
         col += 1
     elseif a.action == :west
-        if col != 1
-            col -= 1
-        end
+        @assert col != 1
+        col -= 1
     elseif a.action == :sample
-        if haskey(rs.loc2rock, (row, col))
-            rock = rs.loc2rock[(row, col)]
-            rock_types[rock2ind(rock)] = :bad
-        end
+        @assert haskey(rs.loc2rock, (row, col))
+        rock = rs.loc2rock[(row, col)]
+        rock_types = copy(s.RockTypes)
+        rock_types[rock2ind(rock)] = :bad
     end
 
     s_ = RSState((row, col), rock_types)
@@ -401,6 +389,24 @@ function isEnd(rs::RockSample, s::RSState)
     else
         return false
     end
+end
+
+
+function isFeasible(rs::RockSample, s::RSState, a::RSAction)
+
+    row, col = s.Position
+
+    if a.action == :north && row == 1
+        return false
+    elseif a.action == :south && row == rs.n
+        return false
+    elseif a.action == :west && col == 1
+        return false
+    elseif a.action == :sample
+        return haskey(rs.loc2rock, (row, col))
+    end
+
+    return true
 end
 
 
@@ -472,7 +478,8 @@ function updateInternalStates(rs::RockSample, s::RSState, a::RSAction, s_::RSSta
 
     rs.rover_pos = s_.Position
 
-    if a.action == :sample && haskey(rs.loc2rock, s.Position)
+    if a.action == :sample
+        @assert haskey(rs.loc2rock, s.Position)
         rock = rs.loc2rock[s.Position]
         rs.rock_types[rock] = :bad
         rs.rock_sampled[rock] = true

@@ -226,9 +226,9 @@ srand(uint(time()))
 
 pm = CryingBaby()
 
-#alg = QMDP(pm, "cryingbaby_qmdp.pcy")
+#alg = QMDP(pm, "cryingbaby_qmdp.pcy", verbose = 1)
 #alg = QMDP("cryingbaby_qmdp.pcy")
-#alg = FIB(pm, "cryingbaby_fib.pcy")
+#alg = FIB(pm, "cryingbaby_fib.pcy", verbose = 1)
 #alg = FIB("cryingbaby_fib.pcy")
 
 #alg = UCT(depth = 3, nloop_max = 10000, nloop_min = 10000, c = 20.)

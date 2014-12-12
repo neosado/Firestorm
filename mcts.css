@@ -2,7 +2,7 @@
     cursor: pointer;
 }
 
-.node circle {
+.node path {
     fill: #ffffff;
     /* stroke: steelblue; */
     stroke-width: 2px;
