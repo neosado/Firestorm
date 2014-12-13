@@ -275,11 +275,11 @@ srand(uint(time()))
 
 #pm = Firestorm(5, seed = rand(1:typemax(Int64)))
 #pm = Firestorm(5, seed = rand(1:1024), p_fire = 0.12)
-pm = Firestorm(3, seed = 837, p_fire = 0.12)
+pm = Firestorm(3, seed = 837, p_fire = 0.25)
 
-#alg = QMDP(pm, "firestorm_qmdp.pcy", verbose = 1)
+#alg = QMDP(pm, "firestorm_qmdp.pcy", gamma_ = 0.90, verbose = 1)
 #alg = QMDP("firestorm_qmdp.pcy")
-#alg = FIB(pm, "firestorm_fib.pcy", verbose = 1)
+#alg = FIB(pm, "firestorm_fib.pcy", gamma_ = 0.90, verbose = 1)
 #alg = FIB("firestorm_fib.pcy")
 
 #alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
