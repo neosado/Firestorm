@@ -76,7 +76,7 @@ function printBelief(pm, alg, b)
 
     for s in pm.states
         if s.Position == pm.uav_pos
-            println(s, ": ", bv.belief[s])
+            println(s.Position, ", ", vec(s.B), ": ", bv.belief[s])
         else
             @test bv.belief[s] == 0.
         end
@@ -129,6 +129,7 @@ function test(pm, alg)
     else
         b = getInitialBelief(pm)
     end
+    printBelief(pm, alg, b)
 
     a_opt, Qv = selectAction(alg, pm, b)
 
@@ -170,6 +171,8 @@ end
 
 function simulate(pm, alg; draw = true, wait = false)
 
+    simulate_wildfire(pm.wm, max(pm.nrow, pm.ncol))
+
     if draw
         fsv = FirestormVisualizer(wait = wait)
     end
@@ -183,12 +186,10 @@ function simulate(pm, alg; draw = true, wait = false)
     end
     #printBelief(pm, alg, b)
 
-    simulate_wildfire(pm.wm, max(pm.nrow, pm.ncol))
-
     println("time: 0, s: ", s.Position)
 
     if draw
-        visInit(fsv, pm)
+        visInit(fsv, pm, b)
         visUpdate(fsv, pm)
         updateAnimation(fsv)
     end
@@ -213,12 +214,18 @@ function simulate(pm, alg; draw = true, wait = false)
         #println()
 
         s_ = nextState(pm, s, a)
-        @test s_ != nothing
 
         o = observe(pm, s_, a)
 
         r = reward(pm, s, a, s_)
         R += r
+
+        if typeof(alg) == POMCP
+            b = updateBelief(pm, FSBeliefParticles(getParticles(alg, a, o)))
+        else
+            b = updateBelief(pm, b, a, o)
+        end
+        #printBelief(pm, alg, b)
 
         Qv__ = Float64[]
         for a__ in  pm.actions
@@ -227,27 +234,19 @@ function simulate(pm, alg; draw = true, wait = false)
         println("time: ", i, ", s: ", s.Position, ", Qv: ", Qv__, ", a: ", a.action, ", o: ", o.observation, ", r: ", r, ", R: ", R, ", s_: ", s_.Position)
 
         updateInternalStates(pm, s, a, s_)
-        wfNextState(pm.wm)
+
+        s = s_
 
         if draw
-            visInit(fsv, pm)
+            visInit(fsv, pm, b)
             visUpdate(fsv, pm, (i, a, o, r, R))
             updateAnimation(fsv)
         end
-
-        s = s_
 
         if isEnd(pm, s)
             println("reached the terminal state")
             break
         end
-
-        if typeof(alg) == POMCP
-            b = updateBelief(pm, FSBeliefParticles(getParticles(alg, a, o)))
-        else
-            b = updateBelief(pm, b, a, o)
-        end
-        #printBelief(pm, alg, b)
 
         if typeof(alg) == UCT || typeof(alg) == POMCP
             reinitialize(alg, a, o)
@@ -275,8 +274,8 @@ end
 srand(uint(time()))
 
 #pm = Firestorm(5, seed = rand(1:typemax(Int64)))
-#pm = Firestorm(5, seed = rand(1:1024))
-pm = Firestorm(3, seed = 837)
+#pm = Firestorm(5, seed = rand(1:1024), p_fire = 0.12)
+pm = Firestorm(3, seed = 837, p_fire = 0.12)
 
 #alg = QMDP(pm, "firestorm_qmdp.pcy", verbose = 1)
 #alg = QMDP("firestorm_qmdp.pcy")
@@ -290,6 +289,6 @@ alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop
 #simulate_wildfire(wm, 60, draw = true)
 
 #test(pm, alg)
-simulate(pm, alg, draw = true, wait = true)
+simulate(pm, alg, draw = true, wait = false)
 
 

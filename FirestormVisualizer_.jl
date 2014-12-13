@@ -8,7 +8,9 @@ export FirestormVisualizer, visInit, visUpdate, updateAnimation, saveAnimation
 
 using Visualizer_
 using Firestorm_
+using Wildfire_
 
+using Base.Test
 using PyCall
 using PyPlot
 
@@ -56,7 +58,7 @@ type FirestormVisualizer <: Visualizer
 end
 
 
-function visInit(fsv::FirestormVisualizer, fs::Firestorm)
+function visInit(fsv::FirestormVisualizer, fs::Firestorm, b::FSBelief)
 
     if fsv.fig == nothing
         fig = figure()
@@ -100,7 +102,7 @@ function visInit(fsv::FirestormVisualizer, fs::Firestorm)
         ax4[:set_xticklabels]([])
         ax4[:set_yticklabels]([])
         ax4[:grid](true)
-        ax4[:set_title]("Utilities")
+        ax4[:set_title]("Belief")
 
         fsv.fig = fig
         fsv.ax1 = ax1
@@ -127,10 +129,72 @@ function visInit(fsv::FirestormVisualizer, fs::Firestorm)
     fuel_map = ax2[:imshow](fs.wm.F, cmap = "Greens", alpha = 0.7, vmin = 0, vmax = fs.wm.F_max, interpolation = "none")
     push!(artists, fuel_map)
 
-    reward_map = ax3[:imshow](fs.R, cmap = "Greys_r", alpha = 0.7, vmin = fs.R_min, vmax = fs.R_max, interpolation = "none")
+
+    P = burningProbMatrix(fs.wm)
+    P[fs.wm.B] = 0.
+    R = P
+    R_min = 0.
+    R_max = 1.
+
+    reward_map = ax3[:imshow](R, cmap = "Greys", alpha = 0.7, vmin = R_min, vmax = R_max, interpolation = "none")
     push!(artists, reward_map)
 
-    utility_map = ax4[:imshow](fs.U, cmap = "Greys_r", alpha = 0.7, vmin = fs.U_min, vmax = fs.U_max, interpolation = "none")
+
+    k_max = nothing
+    v_max = 0.
+    if typeof(b) == FSBeliefVector
+        for (k, v) in b.belief
+            if k.Position != fs.uav_pos
+                if v != 0.
+                    println(k)
+                    println(v)
+                    exit(1)
+                end
+            end
+
+            if v_max != 0. && v == v_max
+                if rand() < 0.5
+                    k_max = k
+                    v_max = v
+                end
+            elseif v > v_max
+                k_max = k
+                v_max = v
+            end
+        end
+    elseif typeof(b) == FSBeliefParticles
+        count_ = Dict{FSState, Int64}()
+
+        for s in b.particles
+            if haskey(count_, s)
+                count_[s] += 1
+            else
+                count_[s] = 1
+            end
+        end
+
+        for (k, v) in count_
+            if k.Position != fs.uav_pos
+                @test v == 0.
+            end
+
+            if v_max != 0. && v == v_max
+                if rand() < 0.5
+                    k_max = k
+                    v_max = v
+                end
+            elseif v > v_max
+                k_max = k
+                v_max = v
+            end
+        end
+    end
+
+    Bf = k_max.B
+    Bf_min = 0.
+    Bf_max = 1.
+
+    utility_map = ax4[:imshow](Bf, cmap = "Reds", alpha = 0.5, vmin = Bf_min, vmax = Bf_max, interpolation = "none")
     push!(artists, utility_map)
 
     # TODO add colorbar
@@ -152,7 +216,9 @@ function visUpdate(fsv::FirestormVisualizer, fs::Firestorm)
 
     fig = fsv.fig
 
-    text = fig[:text](0.5, 0.065, "$(fs.nrow) x $(fs.ncol) grid, seed: $(fs.seed)", horizontalalignment = "center", verticalalignment = "top")
+    # FIXME ArtistAnimation fails with fig. ax works ok.
+    #text = fig[:text](0.5, 0.065, "$(fs.nrow) x $(fs.ncol) grid, seed: $(fs.seed)", horizontalalignment = "center", verticalalignment = "top")
+    text = fsv.ax3[:text](1.25, -0.1, "$(fs.nrow) x $(fs.ncol) grid, seed: $(fs.seed)", horizontalalignment = "center", verticalalignment = "top", transform = fsv.ax3[:transAxes])
     push!(fsv.artists, text)
 
     fig[:canvas][:draw]()
@@ -171,7 +237,9 @@ function visUpdate(fsv::FirestormVisualizer, fs::Firestorm, sim::(Int64, FSActio
     r = sim[4]
     R = sim[5]
 
-    text = fig[:text](0.5, 0.065, "timestep: $timestep, action: $action, observation: $observation, reward: $(int(r)), total reward: $(int(R))", horizontalalignment = "center", verticalalignment = "top")
+    # FIXME ArtistAnimation fails with fig. ax works ok.
+    #text = fig[:text](0.5, 0.065, "timestep: $timestep, action: $action, observation: $observation, reward: $(int(r)), total reward: $(int(R))", horizontalalignment = "center", verticalalignment = "top")
+    text = fsv.ax3[:text](1.25, -0.1, "timestep: $timestep, action: $action, observation: $observation, reward: $(int(r)), total reward: $(int(R))", horizontalalignment = "center", verticalalignment = "top", transform = fsv.ax3[:transAxes])
     push!(fsv.artists, text)
 
     fig[:canvas][:draw]()

@@ -114,7 +114,8 @@ function visUpdate(wfv::WildfireVisualizer, wm::Wildfire)
     fig = wfv.fig
 
     # FIXME ArtistAnimation fails with fig. ax works ok.
-    text = fig[:text](0.5, 0.2, "$(wm.nrow) x $(wm.ncol) grid, seed: $(wm.seed)", horizontalalignment = "center", verticalalignment = "top")
+    #text = fig[:text](0.5, 0.2, "$(wm.nrow) x $(wm.ncol) grid, seed: $(wm.seed)", horizontalalignment = "center", verticalalignment = "top")
+    text = wfv.ax1[:text](1.25, -0.1, "$(wm.nrow) x $(wm.ncol) grid, seed: $(wm.seed)", horizontalalignment = "center", verticalalignment = "top", transform = wfv.ax1[:transAxes])
     push!(wfv.artists, text)
 
     fig[:canvas][:draw]()
@@ -128,7 +129,8 @@ function visUpdate(wfv::WildfireVisualizer, wm::Wildfire, timestep::Int64)
     fig = wfv.fig
 
     # FIXME ArtistAnimation fails with fig. ax works ok.
-    text = fig[:text](0.5, 0.2, "timestep: $timestep", horizontalalignment = "center", verticalalignment = "top")
+    #text = fig[:text](0.5, 0.2, "timestep: $timestep", horizontalalignment = "center", verticalalignment = "top")
+    text = fig[:text](1.25, -0.1, "timestep: $timestep", horizontalalignment = "center", verticalalignment = "top", transform = wfv.ax1[:transAxes])
     push!(wfv.artists, text)
 
     fig[:canvas][:draw]()

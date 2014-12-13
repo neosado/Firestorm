@@ -5,6 +5,7 @@ module Wildfire_
 
 export Wildfire, BurningMatrix, FuelLevelMatrix
 export wfTranProb, wfNextState
+export burningProb, burningProbMatrix
 
 
 using Distributions
@@ -45,7 +46,7 @@ type Wildfire
         self.ncol = ncol
 
         # initial fire
-        B = zeros(Int64, nrow, ncol)
+        B = zeros(Bool, nrow, ncol)
         B[rand(1:nrow), rand(1:ncol)] = true
         self.B = B
 
@@ -70,8 +71,6 @@ end
 
 function burningProb(wm::Wildfire, B::BurningMatrix, i, j)
 
-    n, m = size(B)
-
     if B[i, j]
         return 1.
     else
@@ -81,7 +80,7 @@ function burningProb(wm::Wildfire, B::BurningMatrix, i, j)
             s *= 1 - wm.p_fire * B[i - 1, j]
         end
 
-        if i != n
+        if i != wm.nrow
             s *= 1 - wm.p_fire * B[i + 1, j]
         end
 
@@ -89,7 +88,7 @@ function burningProb(wm::Wildfire, B::BurningMatrix, i, j)
             s *= 1 - wm.p_fire * B[i, j - 1]
         end
 
-        if j != m
+        if j != wm.ncol
             s *= 1 - wm.p_fire * B[i, j + 1]
         end
 
@@ -100,8 +99,6 @@ function burningProb(wm::Wildfire, B::BurningMatrix, i, j)
 end
 
 function burningProb(wm::Wildfire, B::BurningMatrix, F::FuelLevelMatrix, i, j)
-
-    n, m = size(B)
 
     if F[i, j] == 0
         return 0.
@@ -114,7 +111,7 @@ function burningProb(wm::Wildfire, B::BurningMatrix, F::FuelLevelMatrix, i, j)
             s *= 1 - wm.p_fire * B[i - 1, j]
         end
 
-        if i != n
+        if i != wm.nrow
             s *= 1 - wm.p_fire * B[i + 1, j]
         end
 
@@ -122,7 +119,7 @@ function burningProb(wm::Wildfire, B::BurningMatrix, F::FuelLevelMatrix, i, j)
             s *= 1 - wm.p_fire * B[i, j - 1]
         end
 
-        if j != m
+        if j != wm.ncol
             s *= 1 - wm.p_fire * B[i, j + 1]
         end
 
@@ -133,20 +130,23 @@ function burningProb(wm::Wildfire, B::BurningMatrix, F::FuelLevelMatrix, i, j)
 end
 
 
+function burningProbMatrix(wm::Wildfire)
+
+    P = [burningProb(wm, wm.B, i, j) for i = 1:wm.nrow, j = 1:wm.ncol]
+
+    return P
+end
+
 function burningProbMatrix(wm::Wildfire, B::BurningMatrix)
 
-    n, m = size(B)
-
-    P = [burningProb(wm, B, i, j) for i = 1:n, j = 1:m]
+    P = [burningProb(wm, B, i, j) for i = 1:wm.nrow, j = 1:wm.ncol]
 
     return P
 end
 
 function burningProbMatrix(wm::Wildfire, B::BurningMatrix, F::FuelLevelMatrix)
 
-    n, m = size(B)
-
-    P = [burningProb(wm, B, F, i, j) for i = 1:n, j = 1:m]
+    P = [burningProb(wm, B, F, i, j) for i = 1:wm.nrow, j = 1:wm.ncol]
 
     return P
 end
@@ -212,15 +212,17 @@ end
 
 function wfNextState(wm::Wildfire)
 
-    wm.F[wm.B] -= 1
-    wm.F[wm.F .< 0] = 0
+    #wm.F[wm.B] -= 1
+    #wm.F[wm.F .< 0] = 0
 
-    P = burningProbMatrix(wm, wm.B, wm.F)
+    #P = burningProbMatrix(wm, wm.B, wm.F)
+    P = burningProbMatrix(wm, wm.B)
     R = rand((wm.nrow, wm.ncol))
 
     wm.B = P .> R
 
-    return wm.B, wm.F
+    #return wm.B, wm.F
+    return wm.B
 end
 
 

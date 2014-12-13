@@ -70,6 +70,10 @@ function learn(alg::FIB, pm::POMDP; policy_file::ASCIIString = "default.pcy")
         alpha[a] = Dict{State, Float64}()
 
         for s in pm.states
+            if !isFeasible(pm, s, a)
+                continue
+            end
+
             alpha[a][s] = 0.
         end
     end
@@ -83,6 +87,10 @@ function learn(alg::FIB, pm::POMDP; policy_file::ASCIIString = "default.pcy")
         for a in pm.actions
             # \alpha_a^{(k+1)}(s) = R(s,a) + \gamma \sum_o \max_{a'} \sum_{s'} O(o \mid s', a) T(s' \mid s, a) \alpha_{a'}^{(k)}(s')
             for s in pm.states
+                if !isFeasible(pm, s, a)
+                    continue
+                end
+
                 sum_o = 0.
 
                 for o in pm.observations
@@ -92,6 +100,10 @@ function learn(alg::FIB, pm::POMDP; policy_file::ASCIIString = "default.pcy")
                         sum_ = 0.
 
                         for s_ in pm.states
+                            if !isFeasible(pm, s_, a_)
+                                continue
+                            end
+
                             if pm.reward_functype == :type2
                                 sum_ += obsProb(pm, s_, a, o) * tranProb(pm, s, a, s_) * alpha[a_][s_]
                             elseif pm.reward_functype == :type3
@@ -155,6 +167,10 @@ function selectAction(alg::FIB, pm::POMDP, b::Belief)
         U[a] = 0.
 
         for s in pm.states
+            if !isFeasible(pm, s, a)
+                continue
+            end
+
             U[a] += alg.alpha[a][s] * b.belief[s]
         end
 

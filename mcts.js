@@ -291,7 +291,7 @@ function coloring_rs_node(d) {
         style = "fill: purple"
         children = d.actions
     } else if (d.action) {
-        if (d.action == "north" || d.action == "south" || d.action == "east" || d.action == "west")
+        if (d.action == "north" || d.action == "south" || d.action == "east" || d.action == "west" || d.action == "hover")
             style = "stroke: blue"
         else if (d.action == "sample")
             style = "stroke: olive"
@@ -334,12 +334,12 @@ function coloring_fs_node(d) {
         style = "fill: purple"
         children = d.actions
     } else if (d.action) {
-        if (d.action == "north" || d.action == "south" || d.action == "east" || d.action == "west")
+        if (d.action == "north" || d.action == "south" || d.action == "east" || d.action == "west" || d.action == "hover")
             style = "stroke: blue"
         children = d.observations
     } else if (d.observation) {
         if (d.observation == "notburning")
-            style = "stroke: gray"
+            style = "stroke: green"
         else if (d.observation == "burning")
             style = "stroke: red"
         children = d.states || d.actions

@@ -70,6 +70,10 @@ function learn(alg::QMDP, pm::POMDP; policy_file::ASCIIString = "default.pcy")
         alpha[a] = Dict{State, Float64}()
 
         for s in pm.states
+            if !isFeasible(pm, s, a)
+                continue
+            end
+
             alpha[a][s] = 0.
         end
     end
@@ -83,12 +87,26 @@ function learn(alg::QMDP, pm::POMDP; policy_file::ASCIIString = "default.pcy")
         for a in pm.actions
             # \alpha_a^{(k+1)}(s) = R(s,a) + \gamma \sum_{s'} T(s' \mid s, a) \max_{a'} \alpha_{a'}^{(k)}(s').
             for s in pm.states
+                if !isFeasible(pm, s, a)
+                    continue
+                end
+
                 sum_ = 0.
 
                 for s_ in pm.states
+                    tran_prob = tranProb(pm, s, a, s_)
+
+                    if tran_prob == 0.
+                        continue
+                    end
+
                     max_ = -Inf
 
                     for a_ in pm.actions
+                        if !isFeasible(pm, s_, a_)
+                            continue
+                        end
+
                         u = alpha[a_][s_]
                         if u > max_
                             max_ = u
@@ -96,9 +114,9 @@ function learn(alg::QMDP, pm::POMDP; policy_file::ASCIIString = "default.pcy")
                     end
 
                     if pm.reward_functype == :type2
-                        sum_ += tranProb(pm, s, a, s_) * max_
+                        sum_ += tran_prob * max_
                     elseif pm.reward_functype == :type3
-                        sum_ += tranProb(pm, s, a, s_) * (reward(pm, s, a, s_) + alg.gamma_ * max_)
+                        sum_ += tran_prob * (reward(pm, s, a, s_) + alg.gamma_ * max_)
                     end
                 end
 
@@ -150,6 +168,10 @@ function selectAction(alg::QMDP, pm::POMDP, b::Belief)
         U[a] = 0.
 
         for s in pm.states
+            if !isFeasible(pm, s, a)
+                continue
+            end
+
             U[a] += alg.alpha[a][s] * b.belief[s]
         end
 

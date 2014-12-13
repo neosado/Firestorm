@@ -141,16 +141,7 @@ type Firestorm <: POMDP
     uav_pos::(Int64, Int64)
 
 
-    R::Array{Float64, 2}
-    R_min::Float64
-    R_max::Float64
-
-    U::Array{Float64, 2}
-    U_min::Float64
-    U_max::Float64
-
-
-    function Firestorm(n::Int64; seed::Int64 = 0)
+    function Firestorm(n::Int64; seed::Int64 = 0, p_fire::Float64 = 0.06)
 
         self = new()
 
@@ -174,15 +165,17 @@ type Firestorm <: POMDP
         # uav_pos x B x F
         #self.nState = (nrow * ncol) * 2^(nrow * ncol) * (F_max + 1)^(nrow * ncol)
 
+        # XXX
         self.actions = [FSAction(:north), FSAction(:south), FSAction(:west), FSAction(:east)]
-        self.nAction = 4
+        #self.actions = [FSAction(:north), FSAction(:south), FSAction(:west), FSAction(:east), FSAction(:hover)]
+        self.nAction = length(self.actions)
 
         self.observations = [FSObservation(:notburning), FSObservation(:burning)]
-        self.nObservation = 2
+        self.nObservation = length(self.observations)
 
         self.reward_functype = :type3
 
-        self.wm = Wildfire(n, n, seed = seed)
+        self.wm = Wildfire(n, n, seed = seed, p_fire = p_fire)
 
         # UAV location
         side = rand(1:4)
@@ -195,14 +188,6 @@ type Firestorm <: POMDP
         elseif side == 4
             self.uav_pos = (rand(1:nrow), ncol)
         end
-
-        self.R = zeros(nrow, ncol)
-        self.R_min = 0
-        self.R_max = 30
-
-        self.U = zeros(nrow, ncol)
-        self.U_min = 0
-        self.U_max = 30
 
         return self
     end
@@ -348,27 +333,13 @@ end
 
 function isEnd(fs::Firestorm, s::FSState)
 
-    row, col = s.Position
-    B = s.B
+    nfire = sum(s.B)
 
-    bBurning = B[1, 1]
-    bEnd = true
-
-    for j = 1:fs.ncol
-        for i = 1:fs.nrow
-            if B[i, j] != bBurning
-                bEnd = false
-
-                break
-            end
-        end
-
-        if !bEnd
-            break
-        end
+    if nfire == 0 || nfire == (fs.nrow * fs.ncol)
+        return true
+    else
+        return false
     end
-
-    return bEnd
 end
 
 
@@ -456,6 +427,7 @@ end
 
 function updateInternalStates(fs::Firestorm, s::FSState, a::FSAction, s_::FSState)
 
+    fs.wm.B = s_.B
     fs.uav_pos = s_.Position
 end
 
