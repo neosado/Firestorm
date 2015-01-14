@@ -142,10 +142,10 @@ function test(pm, alg)
 end
 
 
-function simulate_wildfire(wm, ts_max = 1; draw = false)
+function simulate_wildfire(wm, ts_max = 1; draw = false, wait = false)
 
     if draw
-        wfv = WildfireVisualizer()
+        wfv = WildfireVisualizer(wait = wait)
 
         visInit(wfv, wm)
         visUpdate(wfv, wm)
@@ -285,8 +285,8 @@ pm = Firestorm(3, seed = 837, p_fire = 0.25)
 #alg = UCT(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
 alg = POMCP(depth = 5, default_policy = default_policy, nloop_max = 10000, nloop_min = 10000, c = 20., gamma_ = 0.99, rgamma_ = 0.99, visualizer = MCTSVisualizer())
 
-#wm = Wildfire(5, 5, p_fire = 0.06)
-#simulate_wildfire(wm, 60, draw = true)
+#wm = Wildfire(10, 10, p_fire = 0.12)
+#simulate_wildfire(wm, 60, draw = true, wait = true)
 
 #test(pm, alg)
 simulate(pm, alg, draw = true, wait = false)

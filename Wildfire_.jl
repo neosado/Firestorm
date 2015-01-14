@@ -30,7 +30,7 @@ type Wildfire
     p_fire::Float64
 
 
-    function Wildfire(nrow::Int64, ncol::Int64; seed::Int64 = 0, p_fire::Float64 = 0.06)
+    function Wildfire(nrow::Int64, ncol::Int64; seed::Int64 = 0, init_loc::Union((Int64, Int64), Nothing) = nothing, p_fire::Float64 = 0.06)
 
         self = new()
 
@@ -47,7 +47,11 @@ type Wildfire
 
         # initial fire
         B = zeros(Bool, nrow, ncol)
-        B[rand(1:nrow), rand(1:ncol)] = true
+        if init_loc != nothing
+            B[init_loc[1], init_loc[2]] = true
+        else
+            B[rand(1:nrow), rand(1:ncol)] = true
+        end
         self.B = B
 
         # fuel level
