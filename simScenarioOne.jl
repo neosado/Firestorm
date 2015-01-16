@@ -11,6 +11,62 @@ using PyPlot
 using Base.Test
 
 
+function generateParams(setnum::Int64 = 1)
+
+    params = ScenarioOneParams()
+
+    if setnum == 1
+        params.n = 11
+
+        params.wf_init_loc = (int(params.n / 2), int(params.n / 2))
+        params.wf_p_fire = 0.12
+
+        params.p_uav_landing_crash = 0.01
+
+        params.r_crashed = -15
+        params.r_dist = [1 -100; 2 -20; 3 -10]
+
+        params.uav_loc = (4, 5)
+        params.uav_base_loc = (11, 8)
+        params.uav_velocity = 0.3
+        params.uav_policy = :back
+
+        params.aircraft_start_loc = (3, 11)
+        params.aircraft_end_loc = (10, 1)
+        params.aircraft_control_points = [(6.5, 6.)]
+        params.aircraft_velocity = 1.
+        params.aircraft_traj_uncertainty = 0.
+
+    elseif setnum == 2
+        params.n = 11
+
+        params.wf_init_loc = (int(params.n / 2), int(params.n / 2))
+        params.wf_p_fire = 0.12
+
+        params.p_uav_landing_crash = 0.01
+
+        params.r_crashed = -15
+        params.r_dist = [1 -100; 2 -20; 3 -10]
+
+        params.uav_loc = (4, 5)
+        params.uav_base_loc = (11, 8)
+        params.uav_velocity = 0.3
+        params.uav_policy = :back
+
+        params.aircraft_start_loc = (4, 11)
+        params.aircraft_end_loc = (7, 11)
+        params.aircraft_control_points = [(-2., 1.), (13., 1.)]
+        params.aircraft_velocity = 1.
+        params.aircraft_traj_uncertainty = 0.
+
+    else
+        error("invalid parameter set")
+    end
+
+    return params
+end
+
+
 function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = false)
 
     s1 = ScenarioOne(params)
@@ -54,34 +110,6 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
 end
 
 
-function generateDefaultParams()
-
-    params = ScenarioOneParams()
-
-    params.n = 11
-
-    params.wf_init_loc = (int(params.n / 2), int(params.n / 2))
-    params.wf_p_fire = 0.12
-
-    params.p_uav_landing_crash = 0.01
-
-    params.r_crashed = -15
-    params.r_dist = [1 -100; 2 -20; 3 -10]
-
-    params.uav_loc = (4, 5)
-    params.uav_base_loc = (11, 8)
-    params.uav_velocity = 0.3
-    params.uav_policy = :back
-
-    params.aircraft_start_loc = (3, 11)
-    params.aircraft_end_loc = (10, 1)
-    params.aircraft_velocity = 1.
-    params.aircraft_traj_uncertainty = 0.
-
-    return params
-end
-
-
 function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., verbose::Int64 = 0)
 
     meanU = 0.
@@ -118,9 +146,9 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 end
 
 
-function evaluatePolicy(policy::Symbol, uncertainty::Float64)
+function evaluatePolicy(param_set_num::Int64, policy::Symbol, uncertainty::Float64)
 
-    params = generateDefaultParams()
+    params = generateParams(param_set_num)
 
     params.uav_policy = policy
     params.aircraft_traj_uncertainty = uncertainty
@@ -152,7 +180,9 @@ end
 if false
     srand(uint(time()))
 
-    params = generateDefaultParams()
+    param_set = 1
+
+    params = generateParams(param_set)
 
     params.uav_loc = (4, 5)
     params.uav_policy = :back
@@ -162,7 +192,7 @@ if false
 
     #estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, verbose = 1)
 
-    #evaluatePolicy(:back, 1.)
+    #evaluatePolicy(param_set, :back, 1.)
 end
 
 

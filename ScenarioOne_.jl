@@ -40,6 +40,7 @@ type ScenarioOneParams
 
     aircraft_start_loc::Union((Int64, Int64), Nothing)
     aircraft_end_loc::Union((Int64, Int64), Nothing)
+    aircraft_control_points::Union(Vector{(Float64, Float64)}, Nothing)
     aircraft_velocity::Float64
     aircraft_traj_uncertainty::Float64
 
@@ -68,6 +69,7 @@ type ScenarioOneParams
 
         self.aircraft_start_loc = nothing
         self.aircraft_end_loc = nothing
+        self.aircraft_control_points = nothing
         self.aircraft_velocity = 1.
         self.aircraft_traj_uncertainty = 0.
 
@@ -108,6 +110,7 @@ type ScenarioOne
 
     aircraft_start_loc::(Int64, Int64)
     aircraft_end_loc::(Int64, Int64)
+    aircraft_control_points::Union(Vector{(Float64, Float64)}, Nothing)
 
     aircraft_velocity::Float64
     aircraft_traj_uncertainty::Float64
@@ -200,6 +203,8 @@ type ScenarioOne
                 self.aircraft_end_loc = (nrow - self.aircraft_start_loc[1], 1)
             end
         end
+
+        self.aircraft_control_points = params.aircraft_control_points
 
         self.aircraft_velocity = params.aircraft_velocity
         self.aircraft_traj_uncertainty = params.aircraft_traj_uncertainty
@@ -301,14 +306,23 @@ end
 
 function generate_aircraft_trajectory(s1::ScenarioOne; bPerturb::Bool = true)
 
-    cp1 = (0.5 * s1.aircraft_end_loc[1] + (1 - 0.5) * s1.aircraft_start_loc[1], 0.5 * s1.aircraft_end_loc[2] + (1 - 0.5) * s1.aircraft_start_loc[2])
+    if s1.aircraft_control_points == nothing
+        P = [s1.aircraft_start_loc, s1.aircraft_end_loc]
+    else
+        if s1.aircraft_traj_uncertainty != 0 && bPerturb == true
+            D = Normal(0, s1.aircraft_traj_uncertainty)
 
-    if s1.aircraft_traj_uncertainty != 0 && bPerturb == true
-        D = Normal(0, s1.aircraft_traj_uncertainty)
-        cp1 = (cp1[1] + rand(D), cp1[2] + rand(D))
+            CPs = (Float64, Float64)[]
+            for cp in s1.aircraft_control_points
+                push!(CPs, (cp[1] + rand(D), cp[2] + rand(D)))
+            end
+        else
+            CPs = s1.aircraft_control_points
+        end
+
+        P = [s1.aircraft_start_loc, CPs, s1.aircraft_end_loc]
     end
 
-    P = [s1.aircraft_start_loc, cp1, s1.aircraft_end_loc]
     d = length(P) - 1
 
     nc = s1.nrow * s1.ncol

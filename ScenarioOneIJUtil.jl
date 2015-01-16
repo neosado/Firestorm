@@ -8,7 +8,7 @@ using HDF5, JLD
 include("simScenarioOne.jl")
 
 
-function retrieveEvaluation(policy::Symbol, uncertainty::Float64; database_filename::ASCIIString = "s1results.jld", update::Bool = false)
+function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; database_filename::ASCIIString = "s1results.jld", update::Bool = false)
 
     if isfile(database_filename)
         database = load(database_filename, "DATA")
@@ -16,7 +16,7 @@ function retrieveEvaluation(policy::Symbol, uncertainty::Float64; database_filen
         database = Dict{Uint64, Any}()
     end
 
-    key = hash([policy, uncertainty])
+    key = hash([param_set_num, policy, uncertainty])
 
     if update != true && haskey(database, key)
         params = database[key]["params"]
@@ -24,7 +24,7 @@ function retrieveEvaluation(policy::Symbol, uncertainty::Float64; database_filen
         RE = database[key]["RE"]
         N = database[key]["N"]
     else
-        U, RE, N, params = evaluatePolicy(policy, uncertainty)
+        U, RE, N, params = evaluatePolicy(param_set_num, policy, uncertainty)
         
         record = Dict{ASCIIString, Any}()
         record["params"] = params
@@ -45,9 +45,9 @@ function retrieveEvaluation(policy::Symbol, uncertainty::Float64; database_filen
 end
 
 
-function plotEvaluation(policy::Symbol, uncertainty::Float64; fig = nothing)
+function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; fig = nothing)
     
-    U, RE, N, params = retrieveEvaluation(policy, uncertainty)
+    U, RE, N, params = retrieveEvaluation(param_set_num, policy, uncertainty)
 
     
     if fig == nothing
@@ -155,7 +155,7 @@ function plotEvaluation(policy::Symbol, uncertainty::Float64; fig = nothing)
 end
 
 
-function plotPolicy(uncertainty::Float64; fig = nothing)
+function plotPolicy(param_set_num::Int64, uncertainty::Float64; fig = nothing)
 
     U = Dict{Symbol, Any}()
     RE = Dict{Symbol, Any}()
@@ -163,7 +163,7 @@ function plotPolicy(uncertainty::Float64; fig = nothing)
     params = Dict{Symbol, Any}()
 
     for policy in [:back, :landing, :stay]
-        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(policy, uncertainty)
+        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(param_set_num, policy, uncertainty)
     end
 
 
@@ -200,7 +200,7 @@ function plotPolicy(uncertainty::Float64; fig = nothing)
     ax1[:grid](true)
     ax1[:set_title]("Policy")
 
-    ax1[:imshow](PM, alpha = 0.5, interpolation = "none")
+    ax1[:imshow](PM, alpha = 0.5, interpolation = "none", vmin = 1, vmax = 3)
 
     params_ = params[:back]
     s1 = ScenarioOne(params_)
@@ -224,6 +224,13 @@ function plotPolicy(uncertainty::Float64; fig = nothing)
 
 
     return U, RE, N, params
+end
+
+
+if false
+    plotEvaluation(1, :back, 1.)
+    #plotPolicy(1, 1.)
+    readline()
 end
 
 
