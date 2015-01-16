@@ -30,17 +30,19 @@ type Wildfire
     p_fire::Float64
 
 
-    function Wildfire(nrow::Int64, ncol::Int64; seed::Int64 = 0, init_loc::Union((Int64, Int64), Nothing) = nothing, p_fire::Float64 = 0.06)
+    function Wildfire(nrow::Int64, ncol::Int64; seed::Union(Int64, Nothing) = nothing, init_loc::Union((Int64, Int64), Nothing) = nothing, p_fire::Float64 = 0.06)
 
         self = new()
 
-        if seed != 0
-            self.seed = uint(seed)
-        else
-            self.seed = uint(time())
-        end
+        if seed != nothing
+            if seed != 0
+                self.seed = uint(seed)
+            else
+                self.seed = uint(time())
+            end
 
-        srand(self.seed)
+            srand(self.seed)
+        end
 
         self.nrow = nrow
         self.ncol = ncol

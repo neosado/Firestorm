@@ -78,23 +78,30 @@ function visInit(s1v::ScenarioOneVisualizer, s1::ScenarioOne)
 
     artists = PyObject[]
 
+
     wildfire_map = ax1[:imshow](s1.wm.B, cmap = "Reds", alpha = 0.5, interpolation = "none")
     push!(artists, wildfire_map)
+
 
     aircraft_path = ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
     append!(artists, aircraft_path)
 
+    if s1.aircraft_planned_path != nothing
+        aircraft_planned_path = ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+        append!(artists, aircraft_planned_path)
+    end
+
     aircraft_start_loc = ax1[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
     append!(artists, aircraft_start_loc)
 
-    uav_path = ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
-    append!(artists, uav_path)
 
-    uav_start_loc = ax1[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
-    append!(artists, uav_start_loc)
+    if s1.uav_path != nothing
+        uav_path = ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
+        append!(artists, uav_path)
 
-    uav_base_marker = ax1[:plot](s1.uav_base_loc[2] - 1, s1.uav_base_loc[1] - 1, "k+", markersize = 150 / min(s1.nrow, s1.ncol))
-    append!(artists, uav_base_marker)
+        uav_start_loc = ax1[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
+        append!(artists, uav_start_loc)
+    end
 
 
     fig[:canvas][:draw]()
@@ -110,14 +117,18 @@ function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne)
     fig = s1v.fig
     ax1 = s1v.ax1
 
+
     text = s1v.ax1[:text](0.5, -0.02, "$(s1.nrow) x $(s1.ncol) grid, seed: $(s1.seed)", horizontalalignment = "center", verticalalignment = "top", transform = s1v.ax1[:transAxes])
     push!(s1v.artists, text)
+
 
     aircraft_marker = ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 150 / min(s1.nrow, s1.ncol))
     append!(s1v.artists, aircraft_marker)
 
+
     uav_marker = ax1[:plot](s1.uav_loc[2] - 1, s1.uav_loc[1] - 1, "mo", markersize = 150 / min(s1.nrow, s1.ncol))
     append!(s1v.artists, uav_marker)
+
 
     fig[:canvas][:draw]()
 
@@ -130,18 +141,30 @@ function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64,
     fig = s1v.fig
     ax1 = s1v.ax1
 
+
     text = s1v.ax1[:text](0.5, -0.02, "timestep: $timestep, reward: $reward, utility: $utility", horizontalalignment = "center", verticalalignment = "top", transform = s1v.ax1[:transAxes])
     push!(s1v.artists, text)
 
-    if s1state.aircraft_status == :flying
+
+    if s1state.aircraft_loc != nothing
         aircraft_marker = ax1[:plot](s1state.aircraft_loc[2] - 1, s1state.aircraft_loc[1] - 1, "b^", markersize = 150 / min(s1.nrow, s1.ncol))
         append!(s1v.artists, aircraft_marker)
     end
 
-    if s1state.uav_status == :flying
-        uav_marker = ax1[:plot](s1state.uav_loc[2] - 1, s1state.uav_loc[1] - 1, "mo", markersize = 150 / min(s1.nrow, s1.ncol))
+
+    if s1state.uav_loc != nothing
+        if s1state.uav_status == :flying
+            uav_marker_spec = "mo"
+        elseif s1state.uav_status == :landed
+            uav_marker_spec = "go"
+        elseif s1state.uav_status == :crashed
+            uav_marker_spec = "ro"
+        end
+
+        uav_marker = ax1[:plot](s1state.uav_loc[2] - 1, s1state.uav_loc[1] - 1, uav_marker_spec, markersize = 150 / min(s1.nrow, s1.ncol))
         append!(s1v.artists, uav_marker)
     end
+
 
     fig[:canvas][:draw]()
 
