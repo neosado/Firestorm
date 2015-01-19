@@ -405,6 +405,7 @@ function discretize_path(path::PATH, velocity)
         @assert abs(drow) <= 1 && abs(dcol) <= 1
 
         if abs(drow) == 1 && abs(dcol) == 1
+            # be careful about this randomness
             if rand() < 0.5
                 drow = 0
             else

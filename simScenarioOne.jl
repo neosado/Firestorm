@@ -146,7 +146,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 end
 
 
-function evaluatePolicy(param_set_num::Int64, policy::Symbol, uncertainty::Float64)
+function evaluatePolicy(param_set_num::Int64, policy::Symbol, uncertainty::Float64; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
 
     params = generateParams(param_set_num)
 
@@ -158,16 +158,38 @@ function evaluatePolicy(param_set_num::Int64, policy::Symbol, uncertainty::Float
     RE = zeros(params.n, params.n)
     N = zeros(Int64, params.n, params.n)
 
-    for i = 1:params.n
+    if bParallel == false
+        for i = 1:params.n
+            for j = 1:params.n
+                params.uav_loc = (i, j)
+
+                U[i, j], RE[i, j], N[i, j] = estimateExpectedUtility(params, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold)
+
+                #println("($i, $j), mean: ", int(U[i, j]), ", RE: ", signif(RE[i, j], 4), ", N: ", N[i, j])
+            end
+        end
+
+    else
+        lst = (Int64, Int64)[]
         for j = 1:params.n
-            params.uav_loc = (i, j)
+            for i = 1:params.n
+                push!(lst, (i, j))
+            end
+        end
 
-            U[i, j], RE[i, j], N[i, j] = estimateExpectedUtility(params, N_min = 100, N_max = 1000, RE_threshold = 0.1)
+        results = pmap(x -> (params.uav_loc = x; estimateExpectedUtility(params, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold)), lst)
 
-            #println("($i, $j), mean: ", int(U[i, j]), ", RE: ", signif(RE[i, j], 4), ", N: ", N[i, j])
+        k = 1
+        for result in results
+            U[k] = result[1]
+            RE[k] = result[2]
+            N[k] = result[3]
+
+            k += 1
         end
     end
 
+    # debug
     #println(params)
     #println(int(U))
     #println(round(RE, 4))
@@ -192,7 +214,7 @@ if false
 
     #estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, verbose = 1)
 
-    #evaluatePolicy(param_set, :back, 1.)
+    #evaluatePolicy(param_set, :back, 0., N_min = 100, N_max = 1000, RE_threshold = 0.01)
 end
 
 
