@@ -8,10 +8,10 @@ using HDF5, JLD
 include("simScenarioOne.jl")
 
 
-function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; database_filename::ASCIIString = "s1results.jld", update::Bool = false, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
+function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; database::ASCIIString = "s1results.jld", update::Bool = false, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
 
-    if isfile(database_filename)
-        database = load(database_filename, "DATA")
+    if isfile(database)
+        database = load(database, "DATA")
     else
         database = Dict{Uint64, Any}()
     end
@@ -46,9 +46,9 @@ function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::F
 end
 
 
-function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; draw::Bool = true, fig = nothing)
+function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; draw::Bool = true, fig = nothing, database::ASCIIString = "s1results.jld")
     
-    U, RE, N, params = retrieveEvaluation(param_set_num, policy, uncertainty)
+    U, RE, N, params = retrieveEvaluation(param_set_num, policy, uncertainty, database = database)
 
     if draw
         if fig == nothing
@@ -156,15 +156,15 @@ function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float
 end
 
 
-function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = true, fig = nothing)
+function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = true, fig = nothing, database::ASCIIString = "s1results.jld")
 
     U = Dict{Symbol, Any}()
     RE = Dict{Symbol, Any}()
     N = Dict{Symbol, Any}()
     params = Dict{Symbol, Any}()
 
-    for policy in [:back, :landing, :stay]
-        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(param_set_num, policy, uncertainty)
+    for policy in [:stay, :back, :landing]
+        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(param_set_num, policy, uncertainty, database = database)
     end
 
     n = params[:back].n
@@ -175,11 +175,19 @@ function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = tru
         for j = 1:n
             U_tmp = Float64[]
             
-            for policy in [:back, :landing, :stay]
+            for policy in [:stay, :back, :landing]
                 push!(U_tmp, U[policy][i, j])
             end
 
-            PM[i, j] = indmax(U_tmp)
+            ind = indmax(U_tmp)
+
+            if ind == 2
+                PM[i, j] = 1    # blue
+            elseif ind == 1
+                PM[i, j] = 2    # green
+            elseif ind == 3
+                PM[i, j] = 3    # red
+            end
         end
     end
 
@@ -220,23 +228,26 @@ function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = tru
 
         ax1[:plot](params_.uav_base_loc[2] - 1, params_.uav_base_loc[1] - 1, "kx")
 
-        ax1[:text](0.5, -0.02, "blue: back to base | green: emergency landing | red: stay in place", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+        ax1[:text](0.5, -0.02, "red: emergency landing | green: stay in place | blue: back to base", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
     end
 
     return PM, U, RE, N, params
 end
 
 
-function buildDatabase(; bParallel::Bool = false)
+function buildDatabase(database::ASCIIString; update::Bool = false, bParallel::Bool = false)
 
     for param_set in [1, 2]
-        for policy in [:back, :landing, :stay]
+        for policy in [:stay, :back, :landing]
             for uncertainty in [0., 1., 2.]
-                retrieveEvaluation(param_set, policy, uncertainty, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+                retrieveEvaluation(param_set, policy, uncertainty, database = database, update = update, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
             end
         end
     end
 end
+
+# $ julia -p 4 -L ScenarioOne_.jl -L simScenarioOne.jl ScenarioOneIJUtil.jl
+#buildDatabase("s1results.jld", update = false, bParallel = true)
 
 
 if false
@@ -244,8 +255,6 @@ if false
     #plotEvaluation(1, :back, 1.)
     plotPolicy(1, 1.)
     readline()
-
-    #buildDatabase(bParallel = true)
 end
 
 
