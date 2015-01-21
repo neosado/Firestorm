@@ -50,7 +50,7 @@ type ScenarioOneVisualizer <: Visualizer
 end
 
 
-function visInit(s1v::ScenarioOneVisualizer, s1::ScenarioOne)
+function visInit(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64 = 0)
 
     if s1v.fig == nothing
         fig = figure(facecolor = "white")
@@ -83,25 +83,43 @@ function visInit(s1v::ScenarioOneVisualizer, s1::ScenarioOne)
     push!(artists, wildfire_map)
 
 
-    aircraft_path = ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
-    append!(artists, aircraft_path)
-
-    if s1.aircraft_planned_path != nothing
-        aircraft_planned_path = ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+    if s1.aircraft_traj_uncertainty != 0
+        #aircraft_planned_path = ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+        path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
+        for t = 1:length(s1.aircraft_planned_dpath)
+            path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
+        end
+        aircraft_planned_path = ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
         append!(artists, aircraft_planned_path)
     end
+
+    #aircraft_path = ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
+    path = zeros(Int64, length(s1.aircraft_dpath), 2)
+    for t = 1:length(s1.aircraft_dpath)
+        path[t, 1], path[t, 2] = s1.aircraft_dpath[t]
+    end
+    aircraft_path = ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "c--")
+    append!(artists, aircraft_path)
 
     aircraft_start_loc = ax1[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
     append!(artists, aircraft_start_loc)
 
 
     if s1.uav_path != nothing
-        uav_path = ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
+        #uav_path = ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
+        path = zeros(Int64, length(s1.uav_dpath), 2)
+        for t = 1:length(s1.uav_dpath)
+            path[t, 1], path[t, 2] = s1.uav_dpath[t]
+        end
+        uav_path = ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "r-.")
         append!(artists, uav_path)
 
         uav_start_loc = ax1[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
         append!(artists, uav_start_loc)
     end
+
+    uav_base_loc = ax1[:plot](s1.uav_base_loc[2] - 1, s1.uav_base_loc[1] - 1, "kx")
+    append!(artists, uav_base_loc)
 
 
     fig[:canvas][:draw]()
@@ -158,7 +176,7 @@ function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64,
         elseif s1state.uav_status == :landed
             uav_marker_spec = "go"
         elseif s1state.uav_status == :crashed
-            uav_marker_spec = "ro"
+            uav_marker_spec = "ko"
         end
 
         uav_marker = ax1[:plot](s1state.uav_loc[2] - 1, s1state.uav_loc[1] - 1, uav_marker_spec, markersize = 150 / min(s1.nrow, s1.ncol))
@@ -172,9 +190,18 @@ function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64,
 end
 
 
-function updateAnimation(s1v::ScenarioOneVisualizer)
+function updateAnimation(s1v::ScenarioOneVisualizer, timestep::Int64 = -1; bSaveFrame::Bool = false, filename::ASCIIString = "scenario1.png")
 
     append!(s1v.ims, {s1v.artists})
+
+    if bSaveFrame
+        if timestep == -1
+            savefig(filename, transparent = false)
+        else
+            base, ext = splitext(filename)
+            savefig(base * "_" * string(timestep) * "." * ext, transparent = false)
+        end
+    end
 
     if s1v.wait
         readline()

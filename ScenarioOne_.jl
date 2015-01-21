@@ -115,7 +115,9 @@ type ScenarioOne
     aircraft_velocity::Float64
     aircraft_traj_uncertainty::Float64
 
-    aircraft_planned_path::Union(PATH, Nothing)
+    aircraft_planned_path::PATH
+    aircraft_planned_dpath::Vector{(Int64, Int64)}
+
     aircraft_path::PATH
     aircraft_dpath::Vector{(Int64, Int64)}
 
@@ -435,10 +437,13 @@ function initTrajectories(s1::ScenarioOne)
 
     s1.aircraft_path = generate_aircraft_trajectory(s1)
     s1.aircraft_dpath = discretize_path(s1.aircraft_path, s1.aircraft_velocity)
-    if s1.aircraft_traj_uncertainty != 0
-        s1.aircraft_planned_path = generate_aircraft_trajectory(s1, bPerturb = false)
+
+    if s1.aircraft_traj_uncertainty == 0
+        s1.aircraft_planned_path = s1.aircraft_path
+        s1.aircraft_planned_dpath = s1.aircraft_dpath
     else
-        s1.aircraft_planned_path = nothing
+        s1.aircraft_planned_path = generate_aircraft_trajectory(s1, bPerturb = false)
+        s1.aircraft_planned_dpath = discretize_path(s1.aircraft_planned_path, s1.uav_velocity)
     end
 
     s1.uav_path = generate_uav_trajectory(s1)
@@ -507,7 +512,8 @@ function getReward(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
 
     if s1.r_dist != nothing
         if s1state.uav_loc != nothing && s1state.aircraft_loc != nothing
-            dist = norm([s1state.uav_loc[1] - s1state.aircraft_loc[1], s1state.uav_loc[2] - s1state.aircraft_loc[2]])
+            #dist = norm([s1state.uav_loc[1] - s1state.aircraft_loc[1], s1state.uav_loc[2] - s1state.aircraft_loc[2]])
+            dist = abs(s1state.uav_loc[1] - s1state.aircraft_loc[1]) + abs(s1state.uav_loc[2] - s1state.aircraft_loc[2])
 
             for i = 1:size(s1.r_dist, 1)
                 if dist < s1.r_dist[i, 1]

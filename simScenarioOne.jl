@@ -92,9 +92,9 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
         U += r
 
         if draw
-            visInit(s1v, s1)
+            visInit(s1v, s1, t)
             visUpdate(s1v, s1, t, state, r, U)
-            updateAnimation(s1v)
+            updateAnimation(s1v, t)
         end
 
         updateStatePartB(s1, state, t)

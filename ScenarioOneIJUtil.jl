@@ -73,25 +73,40 @@ function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float
 
         B = zeros(Bool, params.n, params.n)
         B[params.wf_init_loc[1], params.wf_init_loc[2]] = true
-
         ax1[:imshow](B, cmap = "Reds", alpha = 0.5, interpolation = "none")
+        #ax1[:plot](params.wf_init_loc[2] - 1, params.wf_init_loc[1] - 1, "rs", alpha = 0.5, markersize = 50 / params.n)
 
-        ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
-
-        if s1.aircraft_planned_path != nothing
-            ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+        #ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
+        path = zeros(Int64, length(s1.aircraft_dpath), 2)
+        for t = 1:length(s1.aircraft_dpath)
+            path[t, 1], path[t, 2] = s1.aircraft_dpath[t]
         end
+        ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "c--")
 
-        ax1[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
+        #ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+        path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
+        for t = 1:length(s1.aircraft_planned_dpath)
+            path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
+        end
+        ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
 
-        ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 60 / params.n)
+        #ax1[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
+        ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 50 / params.n)
+
+        ax1[:plot](params.uav_base_loc[2] - 1, params.uav_base_loc[1] - 1, "kx")
 
         if s1.uav_path != nothing
-            ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
-            ax1[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
+            #ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
+            #ax1[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
+
+            path = zeros(Int64, length(s1.uav_dpath), 2)
+            for t = 1:length(s1.uav_dpath)
+                path[t, 1], path[t, 2] = s1.uav_dpath[t]
+            end
+            ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "r-.")
         end
 
-        ax1[:plot](params.uav_loc[2] - 1, params.uav_loc[1] - 1, "mo", markersize = 60 / params.n)
+        ax1[:plot](params.uav_loc[2] - 1, params.uav_loc[1] - 1, "mo", markersize = 50 / params.n)
 
         #ax1[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
 
@@ -214,17 +229,19 @@ function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = tru
         s1 = ScenarioOne(params_)
         initTrajectories(s1)
 
-        ax1[:plot](params_.wf_init_loc[2] - 1, params_.wf_init_loc[1] - 1, "rs", markersize = 100 / n)
+        #ax1[:plot](params_.wf_init_loc[2] - 1, params_.wf_init_loc[1] - 1, "rs", markersize = 100 / n)
 
-        ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
+        #ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
 
-        if s1.aircraft_planned_path != nothing
-            ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+        #ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+        path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
+        for t = 1:length(s1.aircraft_planned_dpath)
+            path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
         end
+        ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
 
-        ax1[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
-
-        ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 100 / n)
+        #ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 100 / n)
+        ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "k.")
 
         ax1[:plot](params_.uav_base_loc[2] - 1, params_.uav_base_loc[1] - 1, "kx")
 
