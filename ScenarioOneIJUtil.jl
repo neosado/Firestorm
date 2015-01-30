@@ -291,39 +291,11 @@ function plotPolicy(param_set_num::Int64; draw::Bool = true, fig = nothing, data
 end
 
 
-function buildDatabaseV0_1(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
-
-    for param_set in [1, 2]
-        for policy in [:stay, :back, :landing]
-            for aircraft_traj_uncertainty in [0., 1., 2.]
-                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = 100, N_max = 1000, RE_threshold = 0.01, bParallel = bParallel)
-            end
-        end
-    end
-end
-
-function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
-
-    for param_set in [1, 2]
-        for policy in [:stay, :back, :landing, :lower]
-            for sim_time_mu in [5., 10., 15.]
-                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, sim_time_mu = sim_time_mu, N_min = 100, N_max = 1000, RE_threshold = 0.01, bParallel = bParallel)
-            end
-        end
-    end
-end
-
-
 if false
     #retrieveEvaluation(1, :back, datafile = "s1results_v0_1.jld", aircraft_traj_uncertainty = 0.)
     #plotEvaluation(1, :back, aircraft_traj_uncertainty = 1.)
     plotPolicy(1, aircraft_traj_uncertainty = 1.)
     readline()
 end
-
-# Build Database in Parallel
-# $ julia -p 4 -L ScenarioOne_.jl -L simScenarioOne.jl ScenarioOneIJUtil.jl
-#buildDatabaseV0_1("s1results_v0_1.jld", update = false, bParallel = true)
-#buildDatabaseV0_2("s1results_v0_2.jld", update = false, bParallel = true)
 
 

@@ -1,13 +1,24 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 01/13/2015
 
+global __PARALLEL__
+if !isdefined(:__PARALLEL__) 
+    __PARALLEL__ = false
+end
+
 using Wildfire_
+if !__PARALLEL__
 using WildfireVisualizer_
+end
 
 using ScenarioOne_
+if !__PARALLEL__
 using ScenarioOneVisualizer_
+end
 
+if !__PARALLEL__
 using PyPlot
+end
 using Base.Test
 
 
