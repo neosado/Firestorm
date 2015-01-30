@@ -15,53 +15,44 @@ function generateParams(setnum::Int64 = 1)
 
     params = ScenarioOneParams()
 
+    params.n = 11
+
+    params.sim_time = params.n * params.n
+    params.sim_time_mu = 0.
+    params.sim_time_sigma = 0.
+
+    params.wf_init_loc = (int(params.n / 2), int(params.n / 2))
+    params.wf_sim_time = params.n
+    params.wf_p_fire = 0.06
+
+    params.p_uav_landing_crash_rate = 0.01
+    params.p_uav_lower_crash_rate = 0.02
+
+    params.r_crashed = -15
+    params.r_dist = [1 -100; 2 -20; 3 -10]
+
+    params.uav_loc = (4, 5)
+    params.uav_base_loc = (11, 8)
+    params.uav_velocity = 0.3
+    params.uav_policy = :back
+
     if setnum == 1
-        params.n = 11
-
-        params.wf_init_loc = (int(params.n / 2), int(params.n / 2))
-        params.wf_p_fire = 0.12
-
-        params.p_uav_landing_crash = 0.01
-
-        params.r_crashed = -15
-        params.r_dist = [1 -100; 2 -20; 3 -10]
-
-        params.uav_loc = (4, 5)
-        params.uav_base_loc = (11, 8)
-        params.uav_velocity = 0.3
-        params.uav_policy = :back
-
         params.aircraft_start_loc = (3, 11)
         params.aircraft_end_loc = (10, 1)
         params.aircraft_control_points = [(6.5, 6.)]
-        params.aircraft_velocity = 1.
-        params.aircraft_traj_uncertainty = 0.
-
     elseif setnum == 2
-        params.n = 11
-
-        params.wf_init_loc = (int(params.n / 2), int(params.n / 2))
-        params.wf_p_fire = 0.12
-
-        params.p_uav_landing_crash = 0.01
-
-        params.r_crashed = -15
-        params.r_dist = [1 -100; 2 -20; 3 -10]
-
-        params.uav_loc = (4, 5)
-        params.uav_base_loc = (11, 8)
-        params.uav_velocity = 0.3
-        params.uav_policy = :back
-
         params.aircraft_start_loc = (4, 11)
         params.aircraft_end_loc = (7, 11)
         params.aircraft_control_points = [(-2., 1.), (13., 1.)]
-        params.aircraft_velocity = 1.
-        params.aircraft_traj_uncertainty = 0.
-
     else
         error("invalid parameter set")
     end
+
+    params.aircraft_velocity = 1.
+    params.aircraft_traj_uncertainty = 0.
+
+    params.aircraft_traj_adaptive = false
+    params.aircraft_operation_time_limit = 0
 
     return params
 end
@@ -85,7 +76,7 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
     t = 0
     U = 0
 
-    while !isEndState(s1, state)
+    while !isEndState(s1, state, t)
         updateStatePartA(s1, state, t)
 
         r = getReward(s1, state, t)
@@ -146,12 +137,29 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 end
 
 
-function evaluatePolicy(param_set_num::Int64, policy::Symbol, uncertainty::Float64; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
+function evaluatePolicy(param_set_num::Int64, policy::Symbol; sim_time_mu::Union(Float64, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
 
     params = generateParams(param_set_num)
 
     params.uav_policy = policy
-    params.aircraft_traj_uncertainty = uncertainty
+
+    if aircraft_traj_uncertainty != nothing
+        params.wf_sim_time = params.n
+        params.wf_p_fire = 0.12
+
+        params.aircraft_traj_uncertainty = aircraft_traj_uncertainty
+    end
+
+    if sim_time_mu != nothing
+        params.sim_time_mu = sim_time_mu
+        params.sim_time_sigma = 1.
+
+        params.wf_sim_time = int(params.n * 2)
+        params.wf_p_fire = 0.06
+
+        params.aircraft_traj_adaptive = true
+        params.aircraft_operation_time_limit = 30
+    end
 
 
     U = zeros(params.n, params.n)
@@ -202,19 +210,44 @@ end
 if false
     srand(uint(time()))
 
+    version = "0.1"
     param_set = 1
 
     params = generateParams(param_set)
 
-    params.uav_loc = (4, 5)
-    params.uav_policy = :back
-    params.aircraft_traj_uncertainty = 1.
+    if version == "0.1"
+        params.wf_sim_time = params.n
+        params.wf_p_fire = 0.12
+
+        params.uav_loc = (4, 5)
+        # :stay, :back, :landing
+        params.uav_policy = :back
+        params.aircraft_traj_uncertainty = 1.
+
+    elseif version == "0.2"
+        # 68% within 1 standard deviation
+        # 95% within 2 standard deviation
+        # 99.7% within 3 standard deviation
+        params.sim_time_mu = 10.
+        params.sim_time_sigma = 1.
+
+        params.wf_sim_time = int64(params.n * 2)
+        params.wf_p_fire = 0.06
+
+        params.uav_loc = (4, 5)
+        # :stay, :back, :landing, :lower
+        params.uav_policy = :back
+        params.aircraft_traj_uncertainty = 0.
+
+        params.aircraft_traj_adaptive = true
+        params.aircraft_operation_time_limit = 30
+    end
 
     simulate(params, draw = true, wait = true)
 
     #estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, verbose = 1)
 
-    #evaluatePolicy(param_set, :back, 0., N_min = 100, N_max = 1000, RE_threshold = 0.01)
+    #evaluatePolicy(param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
 end
 
 

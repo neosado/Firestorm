@@ -8,23 +8,32 @@ using HDF5, JLD
 include("simScenarioOne.jl")
 
 
-function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; database::ASCIIString = "s1results.jld", update::Bool = false, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
+function retrieveEvaluation(param_set_num::Int64, policy::Symbol; datafile::ASCIIString = "s1results.jld", update::Bool = false, sim_time_mu::Union(Float64, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
 
-    if isfile(database)
-        database = load(database, "DATA")
+    @assert (sim_time_mu != nothing && aircraft_traj_uncertainty == nothing) || (sim_time_mu == nothing && aircraft_traj_uncertainty != nothing)
+
+    if isfile(datafile)
+        database = load(datafile, "DATA")
     else
         database = Dict{Uint64, Any}()
     end
 
-    key = hash([param_set_num, policy, uncertainty])
+    if sim_time_mu != nothing
+        key = hash([param_set_num, policy, sim_time_mu])
+    end
+
+    if aircraft_traj_uncertainty != nothing
+        key = hash([param_set_num, policy, aircraft_traj_uncertainty])
+    end
 
     if update != true && haskey(database, key)
         params = database[key]["params"]
         U = database[key]["U"]
         RE = database[key]["RE"]
         N = database[key]["N"]
+
     else
-        U, RE, N, params = evaluatePolicy(param_set_num, policy, uncertainty, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, bParallel = bParallel)
+        U, RE, N, params = evaluatePolicy(param_set_num, policy, sim_time_mu = sim_time_mu, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, bParallel = bParallel)
         
         record = Dict{ASCIIString, Any}()
         record["params"] = params
@@ -33,7 +42,7 @@ function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::F
         record["N"] = N
         database[key] = record
 
-        save("s1results.jld", "DATA", database)
+        save(datafile, "DATA", database)
     end
     
     # debug
@@ -46,9 +55,11 @@ function retrieveEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::F
 end
 
 
-function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float64; draw::Bool = true, fig = nothing, database::ASCIIString = "s1results.jld")
+function plotEvaluation(param_set_num::Int64, policy::Symbol; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_time_mu::Union(Float64, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
     
-    U, RE, N, params = retrieveEvaluation(param_set_num, policy, uncertainty, database = database)
+    @assert (sim_time_mu != nothing && aircraft_traj_uncertainty == nothing) || (sim_time_mu == nothing && aircraft_traj_uncertainty != nothing)
+
+    U, RE, N, params = retrieveEvaluation(param_set_num, policy, datafile = datafile, sim_time_mu = sim_time_mu, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
 
     if draw
         if fig == nothing
@@ -171,15 +182,25 @@ function plotEvaluation(param_set_num::Int64, policy::Symbol, uncertainty::Float
 end
 
 
-function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = true, fig = nothing, database::ASCIIString = "s1results.jld")
+function plotPolicy(param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_time_mu::Union(Float64, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
+
+    @assert (sim_time_mu != nothing && aircraft_traj_uncertainty == nothing) || (sim_time_mu == nothing && aircraft_traj_uncertainty != nothing)
+
+    if sim_time_mu != nothing
+        policies = [:stay, :back, :landing, :lower]
+    end
+
+    if aircraft_traj_uncertainty != nothing
+        policies = [:stay, :back, :landing]
+    end
 
     U = Dict{Symbol, Any}()
     RE = Dict{Symbol, Any}()
     N = Dict{Symbol, Any}()
     params = Dict{Symbol, Any}()
 
-    for policy in [:stay, :back, :landing]
-        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(param_set_num, policy, uncertainty, database = database)
+    for policy in policies
+        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(param_set_num, policy, datafile = datafile, sim_time_mu = sim_time_mu, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
     end
 
     n = params[:back].n
@@ -190,18 +211,32 @@ function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = tru
         for j = 1:n
             U_tmp = Float64[]
             
-            for policy in [:stay, :back, :landing]
+            for policy in policies
                 push!(U_tmp, U[policy][i, j])
             end
 
             ind = indmax(U_tmp)
 
-            if ind == 2
-                PM[i, j] = 1    # blue
-            elseif ind == 1
-                PM[i, j] = 2    # green
-            elseif ind == 3
-                PM[i, j] = 3    # red
+            if length(policies) == 3
+                # :stay, :back, :landing
+                if ind == 2
+                    PM[i, j] = 1    # blue
+                elseif ind == 1
+                    PM[i, j] = 2    # green
+                elseif ind == 3
+                    PM[i, j] = 3    # red
+                end
+            elseif length(policies) == 4
+                # :stay, :back, :landing, :lower
+                if ind == 2
+                    PM[i, j] = 1    # blue
+                elseif ind == 1
+                    PM[i, j] = 2    # cyan
+                elseif ind == 4
+                    PM[i, j] = 3    # yellow
+                elseif ind == 3
+                    PM[i, j] = 4    # red
+                end
             end
         end
     end
@@ -223,7 +258,7 @@ function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = tru
         ax1[:grid](true)
         ax1[:set_title]("Policy")
 
-        ax1[:imshow](PM, alpha = 0.5, interpolation = "none", vmin = 1, vmax = 3)
+        ax1[:imshow](PM, alpha = 0.5, interpolation = "none", vmin = 1, vmax = length(policies))
 
         params_ = params[:back]
         s1 = ScenarioOne(params_)
@@ -245,33 +280,50 @@ function plotPolicy(param_set_num::Int64, uncertainty::Float64; draw::Bool = tru
 
         ax1[:plot](params_.uav_base_loc[2] - 1, params_.uav_base_loc[1] - 1, "kx")
 
-        ax1[:text](0.5, -0.02, "red: emergency landing | green: stay in place | blue: back to base", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+        if length(policies) == 3
+            ax1[:text](0.5, -0.02, "red: emergency landing | green: stay in place | blue: back to base", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+        elseif length(policies) == 4
+            ax1[:text](0.5, -0.02, "red: emergency landing | cyan: stay in place | blue: back to base | yellow: lower altitude", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+        end
     end
 
     return PM, U, RE, N, params
 end
 
 
-function buildDatabase(database::ASCIIString; update::Bool = false, bParallel::Bool = false)
+function buildDatabaseV0_1(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
 
     for param_set in [1, 2]
         for policy in [:stay, :back, :landing]
-            for uncertainty in [0., 1., 2.]
-                retrieveEvaluation(param_set, policy, uncertainty, database = database, update = update, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+            for aircraft_traj_uncertainty in [0., 1., 2.]
+                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = 100, N_max = 1000, RE_threshold = 0.01, bParallel = bParallel)
             end
         end
     end
 end
 
-# $ julia -p 4 -L ScenarioOne_.jl -L simScenarioOne.jl ScenarioOneIJUtil.jl
-#buildDatabase("s1results.jld", update = false, bParallel = true)
+function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
+
+    for param_set in [1, 2]
+        for policy in [:stay, :back, :landing, :lower]
+            for sim_time_mu in [5., 10., 15.]
+                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, sim_time_mu = sim_time_mu, N_min = 100, N_max = 1000, RE_threshold = 0.01, bParallel = bParallel)
+            end
+        end
+    end
+end
 
 
 if false
-    #retrieveEvaluation(1, :back, 0.)
-    #plotEvaluation(1, :back, 1.)
-    plotPolicy(1, 1.)
+    #retrieveEvaluation(1, :back, datafile = "s1results_v0_1.jld", aircraft_traj_uncertainty = 0.)
+    #plotEvaluation(1, :back, aircraft_traj_uncertainty = 1.)
+    plotPolicy(1, aircraft_traj_uncertainty = 1.)
     readline()
 end
+
+# Build Database in Parallel
+# $ julia -p 4 -L ScenarioOne_.jl -L simScenarioOne.jl ScenarioOneIJUtil.jl
+#buildDatabaseV0_1("s1results_v0_1.jld", update = false, bParallel = true)
+#buildDatabaseV0_2("s1results_v0_2.jld", update = false, bParallel = true)
 
 
