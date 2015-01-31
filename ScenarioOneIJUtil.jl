@@ -291,7 +291,11 @@ function plotPolicy(param_set_num::Int64; draw::Bool = true, fig = nothing, data
         if length(policies) == 3
             ax1[:text](0.5, -0.02, "red: emergency landing | green: stay in place | blue: back to base", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
         elseif length(policies) == 4
-            ax1[:text](0.5, -0.02, "red: emergency landing | cyan: stay in place | blue: back to base | yellow: lower altitude", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+            #ax1[:text](0.5, -0.02, "red: emergency landing | cyan: stay in place | blue: back to base | yellow: lower altitude", color = "red", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+            ax1[:text](0.01, -0.02, "emergency landing", color = "#B87575", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+            ax1[:text](0.36, -0.02, "stay in place", color = "#75E7FF", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+            ax1[:text](0.60, -0.02, "back to base", color = "#7575B8", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+            ax1[:text](0.84, -0.02, "lower altitude", color = "#FFF175", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
         end
     end
 
