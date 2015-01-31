@@ -1,16 +1,18 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 01/30/2015
 
-parallel = :local_
-ncpu_local = CPU_CORES
+parallel = :both
+ncpu_local = CPU_CORES / 2
 machines = [("youngjun@cambridge", 6, "/usr/bin"), ("youngjun@cheonan", 4, "/usr/bin")]
 
 
 include("ScenarioOneIJUtil.jl")
 
-if parallel == :local_
-    addprocs(ncpu_local)
-elseif parallel == :remote
+if parallel == :local_ || parallel == :both
+    addprocs(int64(ncpu_local))
+end
+
+if parallel == :remote || parallel == :both
     for (machine, count, dir) in machines
         cluster_list = ASCIIString[]
 
@@ -51,7 +53,7 @@ function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParalle
 end
 
 
-buildDatabaseV0_1("s1results_v0_1.jld", update = false, bParallel = true)
-buildDatabaseV0_2("s1results_v0_2.jld", update = false, bParallel = true)
+buildDatabaseV0_1("s1results_v0_1.jld" * "." * string(int64(time())), update = false, bParallel = true)
+buildDatabaseV0_2("s1results_v0_2.jld" * "." * string(int64(time())), update = false, bParallel = true)
 
 
