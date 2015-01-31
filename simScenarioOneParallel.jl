@@ -6,6 +6,7 @@ ncpu_local = CPU_CORES / 2
 machines = [("youngjun@cambridge", 6, "/usr/bin"), ("youngjun@cheonan", 4, "/usr/bin")]
 
 
+__PARALLEL__ = true
 include("ScenarioOneIJUtil.jl")
 
 if parallel == :local_ || parallel == :both

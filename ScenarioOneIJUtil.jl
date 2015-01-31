@@ -1,7 +1,15 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 01/13/2015
 
+global __PARALLEL__
+if !isdefined(:__PARALLEL__) 
+    __PARALLEL__ = false
+end
+
+if !__PARALLEL__
 using PyPlot
+end
+
 using HDF5, JLD
 
 
