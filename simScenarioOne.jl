@@ -242,7 +242,7 @@ if false
         params.sim_time_mu = 10.
         params.sim_time_sigma = 1.
 
-        params.wf_sim_time = int64(params.n * 2)
+        params.wf_sim_time = params.n * 2
         params.wf_p_fire = 0.06
 
         params.uav_loc = (4, 5)
