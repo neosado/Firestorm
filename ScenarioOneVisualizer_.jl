@@ -79,7 +79,7 @@ function visInit(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64 = 
     artists = PyObject[]
 
 
-    wildfire_map = ax1[:imshow](s1.wm.B, cmap = "Reds", alpha = 0.5, interpolation = "none")
+    wildfire_map = ax1[:imshow](s1.wm.B, cmap = "Reds", alpha = 0.5, interpolation = "none", vmin = 0, vmax = 1)
     push!(artists, wildfire_map)
 
 
@@ -154,7 +154,7 @@ function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne)
 end
 
 
-function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64, s1state::ScenarioOneState, reward::Int64, utility::Int64)
+function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64, s1state::ScenarioOneState, reward::Float64, utility::Float64)
 
     fig = s1v.fig
     ax1 = s1v.ax1

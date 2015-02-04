@@ -23,8 +23,10 @@ type ScenarioOneParams
     n::Int64
 
     sim_time::Int64
-    sim_time_mu::Float64
-    sim_time_sigma::Float64
+    sim_continue::Bool
+
+    sim_comm_loss_duration_mu::Float64
+    sim_comm_loss_duration_sigma::Float64
 
     wf_init_loc::Union((Int64, Int64), Nothing)
     wf_sim_time::Int64
@@ -35,13 +37,15 @@ type ScenarioOneParams
     #p_uav_fail::Float64
     #p_uav_autopilot_fail::Float64
 
-    r_crashed::Int64
-    r_dist::Union(Array{Int64, 2}, Nothing)
+    r_crashed::Float64
+    r_dist::Union(Array{Float64, 2}, Nothing)
+    r_surveillance::Float64
 
     uav_loc::Union((Int64, Int64), Nothing)
     uav_base_loc::Union((Int64, Int64), Nothing)
     uav_velocity::Float64
     uav_policy::Symbol
+    uav_surveillance_pattern::Symbol
 
     aircraft_start_loc::Union((Int64, Int64), Nothing)
     aircraft_end_loc::Union((Int64, Int64), Nothing)
@@ -62,8 +66,10 @@ type ScenarioOneParams
         self.n = 5
 
         self.sim_time = self.n * self.n
-        self.sim_time_mu = 0.
-        self.sim_time_sigma = 0.
+        self.sim_continue = false
+
+        self.sim_comm_loss_duration_mu = 0.
+        self.sim_comm_loss_duration_sigma = 0.
 
         self.wf_init_loc = nothing
         self.wf_sim_time = self.n
@@ -72,13 +78,15 @@ type ScenarioOneParams
         self.p_uav_landing_crash_rate = 0.
         self.p_uav_lower_crash_rate = 0.
 
-        self.r_crashed = 0
+        self.r_crashed = 0.
         self.r_dist = nothing
+        self.r_surveillance = 0.
 
         self.uav_loc = nothing
         self.uav_base_loc = nothing
         self.uav_velocity = 1.
         self.uav_policy = :back
+        self.uav_surveillance_pattern = :square
 
         self.aircraft_start_loc = nothing
         self.aircraft_end_loc = nothing
@@ -105,8 +113,11 @@ type ScenarioOne
 
 
     sim_time::Int64
-    sim_time_mu::Float64
-    sim_time_sigma::Float64
+    sim_continue::Bool
+
+    sim_comm_loss_duration::Int64
+    sim_comm_loss_duration_mu::Float64
+    sim_comm_loss_duration_sigma::Float64
 
 
     p_uav_landing_crash_rate::Float64
@@ -115,8 +126,9 @@ type ScenarioOne
     #p_uav_autopilot_fail::Float64
 
 
-    r_crashed::Int64
-    r_dist::Union(Array{Int64, 2}, Nothing)
+    r_crashed::Float64
+    r_dist::Union(Array{Float64, 2}, Nothing)
+    r_surveillance::Float64
 
 
     uav_loc::(Int64, Int64)
@@ -125,6 +137,7 @@ type ScenarioOne
     uav_velocity::Float64
 
     uav_policy::Symbol
+    uav_surveillance_pattern::Symbol
 
     uav_path::Union(PATH, Nothing)
     uav_dpath::Vector{(Int64, Int64)}
@@ -175,15 +188,23 @@ type ScenarioOne
         simulate_wildfire(self.wm, params.wf_sim_time)
 
 
-        if params.sim_time_mu == 0.
-            self.sim_time = params.sim_time
-        elseif params.sim_time_sigma == 0.
-            self.sim_time = params.sim_time_mu
-        else
-            self.sim_time = int(rand(TruncatedNormal(params.sim_time_mu, params.sim_time_sigma, 1., Inf)))
+        if params.sim_comm_loss_duration_mu != 0.
+            if params.sim_comm_loss_duration_sigma == 0
+                self.sim_comm_loss_duration = params.sim_comm_loss_duration_mu
+            else
+                self.sim_comm_loss_duration = int(rand(TruncatedNormal(params.sim_comm_loss_duration_mu, params.sim_comm_loss_duration_sigma, 1., Inf)))
+            end
         end
-        self.sim_time_mu = params.sim_time_mu
-        self.sim_time_sigma = params.sim_time_sigma
+
+        if params.sim_continue
+            self.sim_time = params.sim_time
+        else
+            self.sim_time = self.sim_comm_loss_duration
+        end
+        self.sim_continue = params.sim_continue
+
+        self.sim_comm_loss_duration_mu = params.sim_comm_loss_duration_mu
+        self.sim_comm_loss_duration_sigma = params.sim_comm_loss_duration_sigma
 
 
         self.p_uav_landing_crash_rate = params.p_uav_landing_crash_rate
@@ -192,6 +213,7 @@ type ScenarioOne
 
         self.r_crashed = params.r_crashed
         self.r_dist = params.r_dist
+        self.r_surveillance = params.r_surveillance
 
 
         if params.uav_loc != nothing
@@ -205,6 +227,7 @@ type ScenarioOne
 
         self.uav_velocity = params.uav_velocity
         self.uav_policy = params.uav_policy
+        self.uav_surveillance_pattern = params.uav_surveillance_pattern
 
 
         if params.uav_base_loc != nothing
@@ -260,7 +283,12 @@ end
 type ScenarioOneState
 
     uav_loc::Union((Int64, Int64), Nothing)
+    uav_prev_loc::Union((Int64, Int64), Nothing)
+    uav_loc_cell::Float64
     uav_status::Symbol
+
+    uav_sv_row_dir::Symbol
+    uav_sv_col_dir::Symbol
 
     aircraft_loc::Union((Int64, Int64), Nothing)
     aircraft_prev_loc::Union((Int64, Int64), Nothing)
@@ -273,7 +301,12 @@ type ScenarioOneState
         self = new()
 
         self.uav_loc = s1.uav_loc
+        self.uav_prev_loc = nothing
+        self.uav_loc_cell = 0.
         self.uav_status = :flying
+
+        self.uav_sv_row_dir = :forward
+        self.uav_sv_col_dir = :forward
 
         self.aircraft_loc = s1.aircraft_start_loc
         self.aircraft_prev_loc = nothing
@@ -497,16 +530,80 @@ function initTrajectories(s1::ScenarioOne)
 end
 
 
-function getNextUAVLoc(s1::ScenarioOne, t::Int64)
+function getNextUAVLoc(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
 
-    if s1.uav_policy == :back
-        if t + 1 > length(s1.uav_dpath)
-            return nothing
-        else
-            return s1.uav_dpath[t + 1]
+    if s1.sim_comm_loss_duration != 0 && t <= s1.sim_comm_loss_duration
+        if s1.uav_policy == :back
+            if t + 1 > length(s1.uav_dpath)
+                return nothing
+            else
+                return s1.uav_dpath[t + 1]
+            end
+        elseif s1.uav_policy == :landing || s1.uav_policy == :stay || s1.uav_policy == :lower
+            return s1.uav_loc
         end
-    elseif s1.uav_policy == :landing || s1.uav_policy == :stay || s1.uav_policy == :lower
-        return s1.uav_loc
+    else
+        s1state.uav_loc_cell += s1.uav_velocity
+
+        if s1state.uav_loc_cell >= 1.
+            s1state.uav_loc_cell = 0.
+
+            if s1.uav_surveillance_pattern == :square
+                if s1state.uav_sv_row_dir == :forward
+                    row = s1state.uav_loc[1] + 1
+                elseif s1state.uav_sv_row_dir == :backward
+                    row = s1state.uav_loc[1] - 1
+                end
+                col = s1state.uav_loc[2]
+
+                if row > s1.nrow
+                    row = s1.nrow
+                    s1state.uav_sv_row_dir = :backward
+
+                    if s1state.uav_sv_col_dir == :forward
+                        col = s1state.uav_loc[2] + 1
+                    else
+                        col = s1state.uav_loc[2] - 1
+                    end
+
+                    if col < 1
+                        row = s1.nrow - 1
+                        col = 1
+                        s1state.uav_sv_col_dir = :forward
+                    elseif col > s1.ncol
+                        row = s1.nrow - 1
+                        col = s1.ncol
+                        s1state.uav_sv_col_dir = :backward
+                    end
+                elseif row < 1
+                    row = 1
+                    s1state.uav_sv_row_dir = :forward
+
+                    if s1state.uav_sv_col_dir == :forward
+                        col = s1state.uav_loc[2] + 1
+                    else
+                        col = s1state.uav_loc[2] - 1
+                    end
+
+                    if col < 1
+                        row = 2
+                        col = 1
+                        s1state.uav_sv_col_dir = :forward
+                    elseif col > s1.ncol
+                        row = 2
+                        col = s1.ncol
+                        s1state.uav_sv_col_dir = :backward
+                    end
+                end
+
+                return (row, col)
+            end
+
+        else
+            return s1state.uav_loc
+
+        end
+
     end
 end
 
@@ -567,7 +664,7 @@ function getNextAircraftLoc(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64
                 s1state.aircraft_mode = :surveil
             end
 
-        elseif t == s1.aircraft_operation_time_limit
+        elseif t > 0 && t == s1.aircraft_operation_time_limit
             s1state.aircraft_mode = :back
         end
 
@@ -644,25 +741,29 @@ end
 
 function updateStatePartA(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
 
-    s1state.uav_loc = getNextUAVLoc(s1, t)
+    uav_next_loc = getNextUAVLoc(s1, s1state, t)
+    s1state.uav_prev_loc = s1state.uav_loc
+    s1state.uav_loc = uav_next_loc
 
     aircraft_next_loc = getNextAircraftLoc(s1, s1state, t)
     s1state.aircraft_prev_loc = s1state.aircraft_loc
     s1state.aircraft_loc = aircraft_next_loc
 
-    if t > 0 && s1.uav_policy == :landing
-        if s1.wm.B[s1state.uav_loc[1], s1state.uav_loc[2]]
-            s1state.uav_status = :crashed
-        else
-            if rand() < s1.p_uav_landing_crash_rate
+    if t > 0 && t <= s1.sim_comm_loss_duration
+        if s1.uav_policy == :landing
+            if s1.wm.B[s1state.uav_loc[1], s1state.uav_loc[2]]
                 s1state.uav_status = :crashed
             else
-                s1state.uav_status = :landed
+                if rand() < s1.p_uav_landing_crash_rate
+                    s1state.uav_status = :crashed
+                else
+                    s1state.uav_status = :landed
+                end
             end
-        end
-    elseif t > 0 && s1.uav_policy == :lower
-        if rand() < s1.p_uav_lower_crash_rate
-            s1state.uav_status = :crashed
+        elseif s1.uav_policy == :lower
+            if rand() < s1.p_uav_lower_crash_rate
+                s1state.uav_status = :crashed
+            end
         end
     end
 end
@@ -671,31 +772,38 @@ end
 function getReward(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
 
     if t == 0
-        return 0
+        return 0.
     end
 
     if s1state.uav_status == :landed
-        return 0
+        return 0.
     end
 
     if s1state.uav_status == :crashed
         return s1.r_crashed
     end
 
-    if s1.uav_policy != :lower && s1.r_dist != nothing
-        if s1state.uav_loc != nothing && s1state.aircraft_loc != nothing
-            #dist = norm([s1state.uav_loc[1] - s1state.aircraft_loc[1], s1state.uav_loc[2] - s1state.aircraft_loc[2]])
-            dist = abs(s1state.uav_loc[1] - s1state.aircraft_loc[1]) + abs(s1state.uav_loc[2] - s1state.aircraft_loc[2])
+    if t <= s1.sim_comm_loss_duration
+        if s1.uav_policy != :lower && s1.r_dist != nothing
+            if s1state.uav_loc != nothing && s1state.aircraft_loc != nothing
+                #dist = norm([s1state.uav_loc[1] - s1state.aircraft_loc[1], s1state.uav_loc[2] - s1state.aircraft_loc[2]])
+                dist = abs(s1state.uav_loc[1] - s1state.aircraft_loc[1]) + abs(s1state.uav_loc[2] - s1state.aircraft_loc[2])
 
-            for i = 1:size(s1.r_dist, 1)
-                if dist < s1.r_dist[i, 1]
-                    return s1.r_dist[i, 2]
+                for i = 1:size(s1.r_dist, 1)
+                    if dist < s1.r_dist[i, 1]
+                        return s1.r_dist[i, 2]
+                    end
                 end
             end
         end
+
+    else
+        if s1state.uav_loc != s1state.uav_prev_loc
+            return s1.r_surveillance
+        end
     end
 
-    return 0
+    return 0.
 end
 
 
@@ -709,9 +817,11 @@ function updateStatePartB(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
         s1state.aircraft_status = :left
     end
 
-    if t > 0 && s1.uav_policy != :lower && s1state.uav_loc == s1state.aircraft_loc
-        s1state.uav_status = :collided
-        s1state.aircraft_status = :collided
+    if t > 0 && t <= s1.sim_comm_loss_duration
+        if s1.uav_policy != :lower && s1state.uav_loc == s1state.aircraft_loc
+            s1state.uav_status = :collided
+            s1state.aircraft_status = :collided
+        end
     end
 
     wfNextState(s1.wm)
