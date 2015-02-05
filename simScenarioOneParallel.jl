@@ -58,7 +58,7 @@ function buildDatabaseV0_3(datafile::ASCIIString; update::Bool = false, bParalle
 
     for param_set in [1, 2]
         for policy in [:stay, :back, :landing, :lower]
-            for r_surveillance in [1., 2., 3.]
+            for r_surveillance in [0., 1., 2.]
                 retrieveEvaluation(param_set, policy, datafile = datafile, update = update, sim_continue = true, r_surveillance = r_surveillance, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
             end
         end

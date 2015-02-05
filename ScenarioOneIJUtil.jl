@@ -188,7 +188,7 @@ end
 
 function plotPolicy(param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_continue::Bool = false, r_surveillance::Float64 = 0., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
 
-    if sim_comm_loss_duration_mu != nothing
+    if sim_comm_loss_duration_mu != nothing || sim_continue
         policies = [:stay, :back, :landing, :lower]
     elseif aircraft_traj_uncertainty != nothing
         policies = [:stay, :back, :landing]
