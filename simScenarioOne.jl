@@ -6,19 +6,11 @@ if !isdefined(:__PARALLEL__)
     __PARALLEL__ = false
 end
 
-using Wildfire_
-if !__PARALLEL__
-using WildfireVisualizer_
-end
-
 using ScenarioOne_
 if !__PARALLEL__
 using ScenarioOneVisualizer_
 end
 
-if !__PARALLEL__
-using PyPlot
-end
 using Base.Test
 
 
@@ -151,7 +143,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 end
 
 
-function evaluatePolicy(param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_continue::Bool = false, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
+function evaluatePolicy(param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_continue::Bool = false, r_surveillance::Float64 = 0., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
 
     params = generateParams(param_set_num)
 
@@ -182,7 +174,7 @@ function evaluatePolicy(param_set_num::Int64, policy::Symbol; sim_comm_loss_dura
         params.wf_sim_time = params.n * 2
         params.wf_p_fire = 0.06
 
-        params.r_surveillance = 1.
+        params.r_surveillance = r_surveillance
 
         params.aircraft_traj_adaptive = true
         params.aircraft_operation_time_limit = 0

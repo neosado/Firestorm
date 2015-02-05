@@ -1,7 +1,7 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 01/30/2015
 
-parallel = :both
+parallel = :local_
 ncpu_local = CPU_CORES / 2
 machines = [("youngjun@cambridge", 6, "/usr/bin"), ("youngjun@cheonan", 4, "/usr/bin")]
 
@@ -46,16 +46,30 @@ function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParalle
 
     for param_set in [1, 2]
         for policy in [:stay, :back, :landing, :lower]
-            for sim_time_mu in [5., 10., 15.]
-                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, sim_time_mu = sim_time_mu, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+            for sim_comm_loss_duration_mu in [5., 10., 15.]
+                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
             end
         end
     end
 end
 
 
-buildDatabaseV0_1("s1results_v0_1.jld" * "." * string(int64(time())), update = false, bParallel = true)
+function buildDatabaseV0_3(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
 
-buildDatabaseV0_2("s1results_v0_2.jld" * "." * string(int64(time())), update = false, bParallel = true)
+    for param_set in [1, 2]
+        for policy in [:stay, :back, :landing, :lower]
+            for r_surveillance in [1., 2., 3.]
+                retrieveEvaluation(param_set, policy, datafile = datafile, update = update, sim_continue = true, r_surveillance = r_surveillance, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+            end
+        end
+    end
+end
+
+
+#buildDatabaseV0_1("s1results_v0_1.jld" * "." * string(int64(time())), update = false, bParallel = true)
+
+#buildDatabaseV0_2("s1results_v0_2.jld" * "." * string(int64(time())), update = false, bParallel = true)
+
+#buildDatabaseV0_3("s1results_v0_3.jld" * "." * string(int64(time())), update = false, bParallel = true)
 
 
