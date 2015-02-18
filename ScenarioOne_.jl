@@ -46,6 +46,7 @@ type ScenarioOneParams
     uav_velocity::Float64
     uav_policy::Symbol
     uav_surveillance_pattern::Symbol
+    uav_cas::Union(Symbol, Nothing)
 
     aircraft_start_loc::Union((Int64, Int64), Nothing)
     aircraft_end_loc::Union((Int64, Int64), Nothing)
@@ -86,7 +87,8 @@ type ScenarioOneParams
         self.uav_base_loc = nothing
         self.uav_velocity = 1.
         self.uav_policy = :back
-        self.uav_surveillance_pattern = :square
+        self.uav_surveillance_pattern = :mower
+        self.uav_cas = nothing
 
         self.aircraft_start_loc = nothing
         self.aircraft_end_loc = nothing
@@ -138,6 +140,7 @@ type ScenarioOne
 
     uav_policy::Symbol
     uav_surveillance_pattern::Symbol
+    uav_cas::Union(Symbol, Nothing)
 
     uav_path::Union(PATH, Nothing)
     uav_dpath::Vector{(Int64, Int64)}
@@ -228,6 +231,7 @@ type ScenarioOne
         self.uav_velocity = params.uav_velocity
         self.uav_policy = params.uav_policy
         self.uav_surveillance_pattern = params.uav_surveillance_pattern
+        self.uav_cas = params.uav_cas
 
 
         if params.uav_base_loc != nothing
@@ -284,7 +288,7 @@ type ScenarioOneState
 
     uav_loc::Union((Int64, Int64), Nothing)
     uav_prev_loc::Union((Int64, Int64), Nothing)
-    uav_loc_cell::Float64
+    uav_loc_in_cell::Float64
     uav_status::Symbol
 
     uav_sv_row_dir::Symbol
@@ -302,7 +306,7 @@ type ScenarioOneState
 
         self.uav_loc = s1.uav_loc
         self.uav_prev_loc = nothing
-        self.uav_loc_cell = 0.
+        self.uav_loc_in_cell = 0.
         self.uav_status = :flying
 
         self.uav_sv_row_dir = :forward
@@ -530,6 +534,41 @@ function initTrajectories(s1::ScenarioOne)
 end
 
 
+function isValidLoc(s1::ScenarioOne, loc::(Int64, Int64))
+
+    if loc[1] == 0 || loc[1] == s1.nrow + 1 || loc[2] == 0 || loc[2] == s1.ncol + 1
+        return false
+    else
+        return true
+    end
+end
+
+
+function isValidNextUAVMove(s1::ScenarioOne, uav_next_loc::(Int64, Int64))
+
+    bOk = false
+
+    for dir in [(1, 0), (-1, 0), (0, 1), (0, -1)]
+        uav_next_next_loc = (uav_next_loc[1] + dir[1], uav_next_loc[2] + dir[2])
+
+        if isValidLoc(s1, uav_next_next_loc)
+            if s1.wm.B[uav_next_loc...]
+                if !s1.wm.B[uav_next_next_loc...]
+                    bOk = true
+                    break
+                end
+            else
+                if s1.wm.B[uav_next_next_loc...]
+                    bOk = true
+                    break
+                end
+            end
+        end
+    end
+
+    return bOk
+end
+
 function getNextUAVLoc(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
 
     if s1.sim_comm_loss_duration != 0 && t <= s1.sim_comm_loss_duration
@@ -543,79 +582,136 @@ function getNextUAVLoc(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
             return s1.uav_loc
         end
     else
-        s1state.uav_loc_cell += s1.uav_velocity
+        if s1state.uav_status == :avoid
+            s1state.uav_loc_in_cell = 0.
 
-        if s1state.uav_loc_cell >= 1.
-            s1state.uav_loc_cell = 0.
-
-            if s1.uav_surveillance_pattern == :square
-                if s1state.uav_sv_row_dir == :forward
-                    row = s1state.uav_loc[1] + 1
-                elseif s1state.uav_sv_row_dir == :backward
-                    row = s1state.uav_loc[1] - 1
-                end
-                col = s1state.uav_loc[2]
-
-                if row > s1.nrow
-                    row = s1.nrow
-                    s1state.uav_sv_row_dir = :backward
-
-                    if s1state.uav_sv_col_dir == :forward
-                        col = s1state.uav_loc[2] + 1
-                    else
-                        col = s1state.uav_loc[2] - 1
-                    end
-
-                    if col < 1
-                        row = s1.nrow - 1
-                        col = 1
-                        s1state.uav_sv_col_dir = :forward
-                    elseif col > s1.ncol
-                        row = s1.nrow - 1
-                        col = s1.ncol
-                        s1state.uav_sv_col_dir = :backward
-                    end
-                elseif row < 1
-                    row = 1
-                    s1state.uav_sv_row_dir = :forward
-
-                    if s1state.uav_sv_col_dir == :forward
-                        col = s1state.uav_loc[2] + 1
-                    else
-                        col = s1state.uav_loc[2] - 1
-                    end
-
-                    if col < 1
-                        row = 2
-                        col = 1
-                        s1state.uav_sv_col_dir = :forward
-                    elseif col > s1.ncol
-                        row = 2
-                        col = s1.ncol
-                        s1state.uav_sv_col_dir = :backward
-                    end
-                end
-
-                return (row, col)
-            end
-
-        else
             return s1state.uav_loc
 
+        else
+            s1state.uav_loc_in_cell += s1.uav_velocity
+
+            if s1state.uav_loc_in_cell >= 1.
+                s1state.uav_loc_in_cell = 0.
+
+                uav_loc = s1state.uav_loc
+                uav_prev_loc = s1state.uav_prev_loc
+
+                dirs = [(1, 0), (-1, 0), (0, 1), (0, -1)]
+
+                if s1.uav_surveillance_pattern == :mower
+                    if s1state.uav_sv_row_dir == :forward
+                        row = uav_loc[1] + 1
+                    elseif s1state.uav_sv_row_dir == :backward
+                        row = uav_loc[1] - 1
+                    end
+                    col = uav_loc[2]
+
+                    if row > s1.nrow
+                        row = s1.nrow
+                        s1state.uav_sv_row_dir = :backward
+
+                        if s1state.uav_sv_col_dir == :forward
+                            col = uav_loc[2] + 1
+                        else
+                            col = uav_loc[2] - 1
+                        end
+
+                        if col < 1
+                            row = s1.nrow - 1
+                            col = 1
+                            s1state.uav_sv_col_dir = :forward
+                        elseif col > s1.ncol
+                            row = s1.nrow - 1
+                            col = s1.ncol
+                            s1state.uav_sv_col_dir = :backward
+                        end
+                    elseif row < 1
+                        row = 1
+                        s1state.uav_sv_row_dir = :forward
+
+                        if s1state.uav_sv_col_dir == :forward
+                            col = uav_loc[2] + 1
+                        else
+                            col = uav_loc[2] - 1
+                        end
+
+                        if col < 1
+                            row = 2
+                            col = 1
+                            s1state.uav_sv_col_dir = :forward
+                        elseif col > s1.ncol
+                            row = 2
+                            col = s1.ncol
+                            s1state.uav_sv_col_dir = :backward
+                        end
+                    end
+
+                    return (row, col)
+
+                elseif s1.uav_surveillance_pattern == :chase
+                    validMove = (Int64, Int64)[]
+
+                    for dir in dirs
+                        uav_next_loc = (uav_loc[1] + dir[1], uav_loc[2] + dir[2])
+
+                        if isValidLoc(s1, uav_next_loc) && uav_next_loc != uav_prev_loc
+                            if isValidNextUAVMove(s1, uav_next_loc)
+                                push!(validMove, uav_next_loc)
+                            end
+                        end
+                    end
+
+                    if length(validMove) != 0
+                        return validMove[rand(1:length(validMove))]
+                    else
+                        for dir in dirs
+                            uav_next_loc = (uav_loc[1] + dir[1], uav_loc[2] + dir[2])
+
+                            if isValidLoc(s1, uav_next_loc) && uav_next_loc != uav_prev_loc
+                                push!(validMove, uav_next_loc)
+                            end
+                        end
+
+                        return validMove[rand(1:length(validMove))]
+                    end
+
+                elseif s1.uav_surveillance_pattern == :back
+                    if uav_loc == s1.uav_base_loc
+                        return nothing
+                    end
+
+                    dists = ones(Int64, 4) * Inf
+                    validMove = (Int64, Int64)[]
+
+                    for i = 1:length(dirs)
+                        uav_next_loc = (uav_loc[1] + dirs[i][1], uav_loc[2] + dirs[i][2])
+                        if isValidLoc(s1, uav_next_loc)
+                            dists[i] = abs(uav_next_loc[1] - s1.uav_base_loc[1]) + abs(uav_next_loc[2] - s1.uav_base_loc[2])
+                        end
+                    end
+
+                    min_dist = minimum(dists)
+                    for i = 1:length(dirs)
+                        uav_next_loc = (uav_loc[1] + dirs[i][1], uav_loc[2] + dirs[i][2])
+
+                        if dists[i] == min_dist
+                            push!(validMove, uav_next_loc)
+                        end
+                    end
+
+                    return validMove[rand(1:length(validMove))]
+
+                end
+
+            else
+                return s1state.uav_loc
+
+            end
+
         end
-
     end
 end
 
-
-function isValidLoc(s1::ScenarioOne, loc::(Int64, Int64))
-
-    if loc[1] == 0 || loc[1] == s1.nrow + 1 || loc[2] == 0 || loc[2] == s1.ncol + 1
-        return false
-    else
-        return true
-    end
-end
 
 function isValidNextAircraftMove(s1::ScenarioOne, aircraft_next_loc::(Int64, Int64))
 
@@ -765,6 +861,24 @@ function updateStatePartA(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
                 s1state.uav_status = :crashed
             end
         end
+
+    else
+        if s1.uav_cas == :lower && s1state.uav_loc != nothing && s1state.aircraft_loc != nothing
+            dist = abs(s1state.uav_loc[1] - s1state.aircraft_loc[1]) + abs(s1state.uav_loc[2] - s1state.aircraft_loc[2])
+
+            if dist < 3.
+                s1state.uav_status = :avoid
+            else
+                s1state.uav_status = :flying
+            end
+        end
+
+        if s1state.uav_status == :avoid
+            if rand() < s1.p_uav_lower_crash_rate
+                s1state.uav_status = :crashed
+            end
+        end
+
     end
 end
 
@@ -798,7 +912,7 @@ function getReward(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
         end
 
     else
-        if s1state.uav_loc != s1state.uav_prev_loc
+        if s1state.uav_loc != s1state.uav_prev_loc && s1state.uav_status != :avoid
             return s1.r_surveillance
         end
     end

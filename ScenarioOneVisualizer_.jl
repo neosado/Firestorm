@@ -165,15 +165,20 @@ function visUpdate(s1v::ScenarioOneVisualizer, s1::ScenarioOne, timestep::Int64,
 
 
     if s1state.uav_loc != nothing
+        uav_alpha = 1.
+
         if s1state.uav_status == :flying
             uav_marker_spec = "mo"
         elseif s1state.uav_status == :landed
             uav_marker_spec = "go"
         elseif s1state.uav_status == :crashed
             uav_marker_spec = "ko"
+        elseif s1state.uav_status == :avoid
+            uav_marker_spec = "mo"
+            uav_alpha = 0.5
         end
 
-        uav_marker = ax1[:plot](s1state.uav_loc[2] - 1, s1state.uav_loc[1] - 1, uav_marker_spec, markersize = 150 / min(s1.nrow, s1.ncol))
+        uav_marker = ax1[:plot](s1state.uav_loc[2] - 1, s1state.uav_loc[1] - 1, uav_marker_spec, markersize = 150 / min(s1.nrow, s1.ncol), alpha = uav_alpha)
         append!(s1v.artists, uav_marker)
     end
 

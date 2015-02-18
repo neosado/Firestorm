@@ -16,7 +16,7 @@ using HDF5, JLD
 include("simScenarioOne.jl")
 
 
-function retrieveEvaluation(param_set_num::Int64, policy::Symbol; datafile::ASCIIString = "s1results.jld", update::Bool = false, sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
+function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symbol; datafile::ASCIIString = "s1results.jld", update::Bool = false, sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
 
     if isfile(datafile)
         database = load(datafile, "DATA")
@@ -24,12 +24,22 @@ function retrieveEvaluation(param_set_num::Int64, policy::Symbol; datafile::ASCI
         database = Dict{Uint64, Any}()
     end
 
-    if aircraft_traj_uncertainty != nothing
+    if version == "0.1"
+        @assert aircraft_traj_uncertainty != nothing
         key = hash([param_set_num, policy, aircraft_traj_uncertainty])
-    elseif sim_comm_loss_duration_mu != nothing
+
+    elseif version == "0.2" || version == "0.2.1"
+        @assert sim_comm_loss_duration_mu != nothing
         key = hash([param_set_num, policy, sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma])
-    elseif sim_continue
+
+    elseif version == "0.3"
+        @assert sim_continue
         key = hash([param_set_num, policy, r_surveillance])
+
+    elseif version == "1.0"
+        @assert uav_surveillance_pattern != nothing
+        key = hash([param_set_num, policy, uav_surveillance_pattern])
+
     end
 
     if update != true && haskey(database, key)
@@ -39,7 +49,7 @@ function retrieveEvaluation(param_set_num::Int64, policy::Symbol; datafile::ASCI
         N = database[key]["N"]
 
     else
-        U, RE, N, params = evaluatePolicy(param_set_num, policy, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, bParallel = bParallel)
+        U, RE, N, params = evaluatePolicy(version, param_set_num, policy, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, bParallel = bParallel)
         
         record = Dict{ASCIIString, Any}()
         record["params"] = params
@@ -61,9 +71,9 @@ function retrieveEvaluation(param_set_num::Int64, policy::Symbol; datafile::ASCI
 end
 
 
-function plotEvaluation(param_set_num::Int64, policy::Symbol; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
+function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symbol; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
     
-    U, RE, N, params = retrieveEvaluation(param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+    U, RE, N, params = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
 
     if draw
         if fig == nothing
@@ -191,7 +201,7 @@ function plotEvaluation(param_set_num::Int64, policy::Symbol; draw::Bool = true,
 end
 
 
-function plotPolicy(param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
+function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
 
     if sim_comm_loss_duration_mu != nothing || sim_continue
         policies = [:stay, :back, :landing, :lower]
@@ -205,7 +215,7 @@ function plotPolicy(param_set_num::Int64; draw::Bool = true, fig = nothing, data
     params = Dict{Symbol, Any}()
 
     for policy in policies
-        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
     end
 
     n = params[:back].n
@@ -301,9 +311,9 @@ end
 
 
 if false
-    #retrieveEvaluation(1, :back, datafile = "s1results_v0_1.jld", aircraft_traj_uncertainty = 0.)
-    #plotEvaluation(1, :back, aircraft_traj_uncertainty = 1.)
-    plotPolicy(1, aircraft_traj_uncertainty = 1.)
+    #retrieveEvaluation("0.1", 1, :back, datafile = "s1results_v0_1.jld", aircraft_traj_uncertainty = 0.)
+    #plotEvaluation("0.1", 1, :back, aircraft_traj_uncertainty = 1.)
+    plotPolicy("0.1", 1, aircraft_traj_uncertainty = 1.)
     readline()
 end
 
