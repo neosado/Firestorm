@@ -201,12 +201,12 @@ function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symb
 end
 
 
-function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
+function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, T::Float64 = 1., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
 
-    if sim_comm_loss_duration_mu != nothing || sim_continue
-        policies = [:stay, :back, :landing, :lower]
-    elseif aircraft_traj_uncertainty != nothing
+    if version == "0.1"
         policies = [:stay, :back, :landing]
+    else
+        policies = [:stay, :back, :landing, :lower]
     end
 
     U = Dict{Symbol, Any}()
@@ -214,8 +214,60 @@ function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = tru
     N = Dict{Symbol, Any}()
     params = Dict{Symbol, Any}()
 
-    for policy in policies
-        U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+    if version == "1.0" && uav_surveillance_pattern == :mixed
+        for policy in policies
+            patterns = [:mower, :chase, :back]
+            npatterns = length(patterns)
+
+            U_ = Array(Any, npatterns)
+            RE_ = Array(Any, npatterns)
+            N_ = Array(Any, npatterns)
+
+            for i = 1:npatterns
+                U_[i], RE_[i], N_[i], params_ = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = patterns[i], aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+            end
+
+            U[policy] = zeros(params_.n, params_.n)
+            RE[policy] = zeros(params_.n, params_.n)
+            N[policy] = zeros(Int64, params_.n, params_.n)
+
+            P = Array(Any, npatterns)
+            for i = 1:npatterns
+                P[i] = exp(U_[i] / T)
+            end
+            P_sum = sum(P)
+
+            for i = 1:npatterns
+                U[policy] += P[i] ./ P_sum .* U_[i]
+            end
+
+            for i = 1:params_.n
+                for j = 1:params_.n
+                    RE__ = zeros(npatterns)
+                    N__ = zeros(npatterns)
+                    for k = 1:npatterns
+                        RE__[k] = RE_[k][i, j]
+                        N__[k] = N_[k][i, j]
+                    end
+                    RE[policy][i, j] = maximum(RE__)
+                    N[policy][i, j] = maximum(N__)
+                end
+            end
+            params[policy] = params_
+
+            # debug
+            #row = 10
+            #col = 6
+            #println("==== ", policy, " ====")
+            #println(U_[1][row, col])
+            #println(U_[2][row, col])
+            #println(U_[3][row, col])
+            #println(U[policy][row, col])
+        end
+    else
+        for policy in policies
+            U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+        end
     end
 
     n = params[:back].n
