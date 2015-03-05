@@ -30,7 +30,7 @@ type Wildfire
     p_fire::Float64
 
 
-    function Wildfire(nrow::Int64, ncol::Int64; seed::Union(Int64, Nothing) = nothing, init_loc::Union((Int64, Int64), Nothing) = nothing, p_fire::Float64 = 0.06)
+    function Wildfire(nrow::Int64, ncol::Int64; seed::Union(Uint64, Nothing) = nothing, init_loc::Union((Int64, Int64), Array{(Int64, Int64), 1}, Nothing) = nothing, p_fire::Float64 = 0.06, B_::Union(BurningMatrix, Nothing) = nothing, F_::Union(FuelLevelMatrix, Nothing) = nothing)
 
         self = new()
 
@@ -48,25 +48,40 @@ type Wildfire
         self.ncol = ncol
 
         # initial fire
-        B = zeros(Bool, nrow, ncol)
-        if init_loc != nothing
-            B[init_loc[1], init_loc[2]] = true
+        if B_ == nothing
+            B = zeros(Bool, nrow, ncol)
+            if init_loc != nothing
+                if isa(init_loc, (Int64, Int64))
+                    B[init_loc[1], init_loc[2]] = true
+                else
+                    for (row, col) in init_loc
+                        B[row, col] = true
+                    end
+                end
+            else
+                B[rand(1:nrow), rand(1:ncol)] = true
+            end
+            self.B = B
         else
-            B[rand(1:nrow), rand(1:ncol)] = true
+            self.B = copy(B_)
         end
-        self.B = B
 
         # fuel level
-        F = zeros(Int64, nrow, ncol)
-        F_max = int(max(nrow, ncol) * 10)
-        mu = F_max * 0.7
-        sigma = mu * 0.2
-        F = int(rand(Normal(mu, sigma), (nrow, ncol)))
-        F[F .< 0] = 0
-        F[F .> F_max] = F_max
+        if F_ == nothing
+            F = zeros(Int64, nrow, ncol)
+            F_max = int(max(nrow, ncol) * 10)
+            mu = F_max * 0.7
+            sigma = mu * 0.2
+            F = int(rand(Normal(mu, sigma), (nrow, ncol)))
+            F[F .< 0] = 0
+            F[F .> F_max] = F_max
 
-        self.F = F
-        self.F_max = F_max
+            self.F = F
+            self.F_max = F_max
+        else
+            self.F = copy(F_)
+            self.F_max = maximum(F_)
+        end
 
         self.p_fire = p_fire
 

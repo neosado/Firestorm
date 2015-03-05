@@ -115,6 +115,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     RE = 0.
 
     n = 0
+
     for i = 1:N_max
         n += 1
 
@@ -314,10 +315,11 @@ if false
         params.sim_comm_loss_duration_sigma = 1.
         params.sim_continue = true
 
-        params.wf_sim_time = params.n * 2
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
-        params.r_surveillance = 0.5
+        params.r_surveillance = 1.
 
         params.uav_loc = (4, 5)
         # :stay, :back, :landing, :lower

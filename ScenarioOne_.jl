@@ -28,7 +28,8 @@ type ScenarioOneParams
     sim_comm_loss_duration_mu::Float64
     sim_comm_loss_duration_sigma::Float64
 
-    wf_init_loc::Union((Int64, Int64), Nothing)
+    wf_seed::Union(Uint64, Nothing)
+    wf_init_loc::Union((Int64, Int64), Array{(Int64, Int64), 1}, Nothing)
     wf_sim_time::Int64
     wf_p_fire::Float64
 
@@ -72,6 +73,7 @@ type ScenarioOneParams
         self.sim_comm_loss_duration_mu = 0.
         self.sim_comm_loss_duration_sigma = 0.
 
+        self.wf_seed = nothing
         self.wf_init_loc = nothing
         self.wf_sim_time = self.n
         self.wf_p_fire = 0.06
@@ -186,7 +188,7 @@ type ScenarioOne
         self.ncol = ncol
 
 
-        self.wm = Wildfire(nrow, ncol, seed = params.seed, init_loc = params.wf_init_loc, p_fire = params.wf_p_fire)
+        self.wm = Wildfire(nrow, ncol, seed = params.wf_seed, init_loc = params.wf_init_loc, p_fire = params.wf_p_fire)
 
         simulate_wildfire(self.wm, params.wf_sim_time)
 

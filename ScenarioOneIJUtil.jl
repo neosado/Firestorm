@@ -75,6 +75,10 @@ function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symb
     
     U, RE, N, params = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
 
+    # debug
+    #println(map(x -> round(signif(x, 4), 4), U))
+    #println(map(x -> round(signif(x, 4), 4), RE))
+
     if draw
         if fig == nothing
             fig = figure(facecolor = "white")
