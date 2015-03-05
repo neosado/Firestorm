@@ -101,7 +101,13 @@ function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symb
         initTrajectories(s1)
 
         B = zeros(Bool, params.n, params.n)
-        B[params.wf_init_loc[1], params.wf_init_loc[2]] = true
+        if isa(params.wf_init_loc, (Int64, Int64))
+            B[params.wf_init_loc[1], params.wf_init_loc[2]] = true
+        else
+            for (row, col) in params.wf_init_loc
+                B[row, col] = true
+            end
+        end
         ax1[:imshow](B, cmap = "Reds", alpha = 0.5, interpolation = "none")
         #ax1[:plot](params.wf_init_loc[2] - 1, params.wf_init_loc[1] - 1, "rs", alpha = 0.5, markersize = 50 / params.n)
 
