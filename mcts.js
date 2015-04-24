@@ -1,3 +1,9 @@
+/*
+Author: Youngjun Kim, youngjun@stanford.edu
+Date: 12/11/2014
+*/
+
+
 var datafile = document.getElementById("mctsVisualizer").getAttribute("datafile")
 var collapse_flag = document.getElementById("mctsVisualizer").getAttribute("collapse") || false
 
