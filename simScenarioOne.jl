@@ -2,7 +2,7 @@
 # Date: 01/13/2015
 
 global __PARALLEL__
-if !isdefined(:__PARALLEL__) 
+if !isdefined(:__PARALLEL__)
     __PARALLEL__ = false
 end
 
@@ -12,6 +12,39 @@ using ScenarioOneVisualizer_
 end
 
 using Base.Test
+
+
+macro neat(v)
+    return :(round(signif($v, 4), 4))
+end
+
+
+type SimStat
+
+    U::Vector{Float64}
+
+    N::Vector{Int64}
+    N_hit::Vector{Int64}
+
+    n_total::Int64
+    n_timestep::Int64
+
+
+    function SimStat(max_level::Int64 = 0)
+
+        self = new()
+
+        self.U = zeros(Float64, max_level + 1)
+
+        self.N = zeros(Int64, max_level + 1)
+        self.N_hit = zeros(Int64, max_level + 1)
+
+        self.n_total = 0
+        self.n_timestep = 0
+
+        return self
+    end
+end
 
 
 function generateParams(setnum::Int64 = 1)
@@ -33,9 +66,9 @@ function generateParams(setnum::Int64 = 1)
     params.p_uav_landing_crash_rate = 0.01
     params.p_uav_lower_crash_rate = 0.02
 
-    params.r_crashed = -15.
-    params.r_dist = [1. -100.; 2. -20.; 3. -10.]
-    params.r_surveillance = 1.
+    params.r_crashed = -1000.
+    params.r_dist = [1. -10000.; 2. -100.; 3. -20.]
+    params.r_surveillance = 10.
 
     params.uav_loc = (4, 5)
     params.uav_base_loc = (11, 8)
@@ -120,6 +153,8 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
         n += 1
 
         U = simulate(params)
+        # debug
+        #println(U)
 
         meanU += (U - meanU) / i
         ssU += U * U
@@ -142,6 +177,125 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     end
 
     return meanU, RE, n
+end
+
+
+function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat; verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
+
+    if typeof(R) == Int64
+        N = R
+    else
+        N = R[level + 1]
+    end
+
+    n::Int64 = 0
+
+    U_sum::Float64 = 0.
+    U_mean::Float64 = 0.
+
+    for i = 1:N
+        n += 1
+        sim_stat.N[level+1] += 1
+
+        if level == 0
+            s1 = ScenarioOne(params)
+            state = ScenarioOneState(s1)
+
+            initTrajectories(s1)
+
+            t = 0
+            U = 0.
+        else
+            s1 = deepcopy(args[1])
+            state = deepcopy(args[2])
+            t = args[3] + 1
+            U = args[4]
+        end
+
+        bHitLevel = false
+
+        while !isEndState(s1, state, t)
+            updateStatePartA(s1, state, t)
+
+            r = getReward(s1, state, t)
+            U += r
+
+            updateStatePartB(s1, state, t)
+
+            sim_stat.n_timestep += 1
+
+            if L != nothing && level < length(L) - 1
+                dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
+
+                if t <= s1.sim_comm_loss_duration && dist < L[level + 2]
+                    sim_stat.N_hit[level+1] += 1
+                    bHitLevel = true
+                    break
+                end
+            end
+
+            t += 1
+        end
+
+        if bHitLevel
+            U = simulate(params, L, R, level + 1, (s1, state, t, U), sim_stat, verbose = verbose)
+        else
+            sim_stat.n_total += 1
+        end
+
+        U_sum += U
+        sim_stat.U[level+1] += (U - sim_stat.U[level+1]) / sim_stat.N[level+1]
+
+        if verbose >= 1 && level == 0 && sim_stat.n_total >= nv
+            U_mean = U_sum / n
+
+            #println("i: ", sim_stat.n_total, ", mean: ", @neat(U_mean))
+            println("i: ", sim_stat.n_total, ", mean: ", U_mean)
+
+            nv += nv_interval
+        end
+    end
+
+    U_mean = U_sum / n
+
+    return U_mean
+end
+
+
+function estimateExpectedUtilityIPS(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., verbose::Int64 = 0)
+
+    #L = nothing
+    #R = 100000
+
+    L = [Inf, 3] # level 0, level 1, ...
+    R = [66000, 10] # level 0, level 1, ...
+
+    #L = [Inf, 3, 1] # level 0, level 1, ...
+    #R = [22000, 30, 30] # level 0, level 1, ...
+
+    if L == nothing
+        max_level = 0
+    else
+        max_level = length(L) - 1
+    end
+
+    sim_stat = SimStat(max_level)
+
+    #U = simulate(params, L, R, 0, nothing, sim_stat, verbose = verbose, nv = 1000, nv_interval = 1000)
+    U = simulate(params, L, R, 0, nothing, sim_stat, verbose = verbose)
+
+    if verbose >= 1
+        println("n: ", sim_stat.n_total, ", mean: ", U)
+        #println("n: ", sim_stat.n_total, ", mean: ", @neat(U))
+        #println()
+        #for l = 0:max_level
+        #    n = sim_stat.N[l+1]
+        #    n_hit = sim_stat.N_hit[l+1]
+
+        #    println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l+1]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
+        #end
+        #println("Total nubmer of time steps: ", sim_stat.n_timestep)
+    end
 end
 
 
@@ -195,10 +349,11 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
         params.sim_comm_loss_duration_sigma = 1.
         params.sim_continue = true
 
-        params.wf_sim_time = params.n * 2
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
-        params.r_surveillance = 0.5
+        params.r_surveillance = 10.
 
         params.uav_surveillance_pattern = uav_surveillance_pattern
         params.uav_cas = :lower
@@ -335,11 +490,109 @@ if false
 
     end
 
-    simulate(params, draw = true, wait = true)
+    params.uav_loc = (5, 4)
+    params.uav_policy = :stay
+    params.sim_comm_loss_duration_sigma = 0.
 
-    #estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, verbose = 1)
+    #simulate(params, draw = true, wait = true)
 
-    #evaluatePolicy(param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
+    estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
+
+    #evaluatePolicy("1.0", param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
+
+    #if false
+    #    s1 = ScenarioOne(params)
+    #    state = ScenarioOneState(s1)
+    #    draw = true
+    #    bCopy = false
+
+    #    initTrajectories(s1)
+
+    #    if draw
+    #        s1v = ScenarioOneVisualizer(wait = true)
+
+    #        visInit(s1v, s1)
+    #        visUpdate(s1v, s1)
+    #        updateAnimation(s1v)
+    #    end
+
+    #    t = 0
+    #    U = 0.
+
+    #    s1_ = nothing
+    #    state_ = nothing
+    #    t_ = nothing
+    #    U_ = U
+
+    #    while false
+    #        while !isEndState(s1, state, t)
+    #            dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
+    #            if dist < 5 && bCopy == false
+    #                bCopy = true
+    #                break
+    #            end
+
+    #            updateStatePartA(s1, state, t)
+
+    #            r = getReward(s1, state, t)
+    #            U += r
+
+    #            if draw
+    #                visInit(s1v, s1, t)
+    #                visUpdate(s1v, s1, t, state, r, U)
+    #                updateAnimation(s1v, t)
+    #            end
+
+    #            updateStatePartB(s1, state, t)
+
+    #            t += 1
+    #        end
+
+    #        if t > 30
+    #            break
+    #        else
+    #            s1_ = deepcopy(s1)
+    #            state_ = deepcopy(state)
+    #            t_ = t
+    #            U_ = U
+    #            println("copy")
+    #        end
+    #    end
+
+    #    if bCopy
+    #        while true
+    #            s1 = deepcopy(s1_)
+    #            state = deepcopy(state_)
+    #            t = t_
+    #            U = U_
+
+    #            if draw
+    #                visInit(s1v, s1, t - 1)
+    #                visUpdate(s1v, s1, t - 1, state, 0., U)
+    #                updateAnimation(s1v, t - 1)
+    #            end
+
+    #            while !isEndState(s1, state, t)
+    #                updateStatePartA(s1, state, t)
+
+    #                r = getReward(s1, state, t)
+    #                U += r
+
+    #                if draw
+    #                    visInit(s1v, s1, t)
+    #                    visUpdate(s1v, s1, t, state, r, U)
+    #                    updateAnimation(s1v, t)
+    #                end
+
+    #                updateStatePartB(s1, state, t)
+
+    #                t += 1
+    #            end
+    #        end
+    #    end
+    #end
+
+    #estimateExpectedUtilityIPS(params, N_min = 1000, N_max = 100000, RE_threshold = 0.01, verbose = 1)
 end
 
 
