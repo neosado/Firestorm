@@ -2,7 +2,7 @@
 # Date: 01/13/2015
 
 global __PARALLEL__
-if !isdefined(:__PARALLEL__) 
+if !isdefined(:__PARALLEL__)
     __PARALLEL__ = false
 end
 
