@@ -319,7 +319,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
 end
 
 
-function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Vector{Float64}, R::Vector{Int64}; RE_threshold::Float64 = 0., verbose::Int64 = 0)
+function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, Vector{Float64}), R::Union(Int64, Vector{Int64}); RE_threshold::Float64 = 0., verbose::Int64 = 0)
 
     if L == nothing
         max_level = 0
