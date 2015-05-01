@@ -21,6 +21,8 @@ end
 
 type SimStat
 
+    nlevel::Int64
+
     U::Vector{Float64}
 
     N::Vector{Int64}
@@ -34,10 +36,12 @@ type SimStat
 
         self = new()
 
-        self.U = zeros(Float64, max_level + 1)
+        self.nlevel = max_level + 1
 
-        self.N = zeros(Int64, max_level + 1)
-        self.N_hit = zeros(Int64, max_level + 1)
+        self.U = zeros(Float64, self.nlevel)
+
+        self.N = zeros(Int64, self.nlevel)
+        self.N_hit = zeros(Int64, self.nlevel)
 
         self.n_total = 0
         self.n_timestep = 0
@@ -148,6 +152,8 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     RE = 0.
 
     n = 0
+    # debug
+    ncollisions = 0
 
     for i = 1:N_max
         n += 1
@@ -156,6 +162,10 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
         # debug
         #println(U)
 
+        if U <= -10000
+            ncollisions += 1
+        end
+
         meanU += (U - meanU) / i
         ssU += U * U
         if i > 1
@@ -163,7 +173,8 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
             RE = abs(sqrt(var) / meanU)
 
             if verbose >= 1 && i % 100 == 0
-                println("i: $i, mean: $meanU, RE: $RE")
+                #println("i: $i, mean: $meanU, RE: $RE")
+                println("i: $i, mean: $meanU, RE: $RE, collisions: $ncollisions")
             end
 
             if i >= N_min && (isnan(RE) || (RE_threshold != 0 && RE < RE_threshold))
@@ -173,7 +184,9 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     end
 
     if verbose >= 1
-        println("n: $n, mean: $meanU, RE: $RE")
+        #println("n: $n, mean: $meanU, RE: $RE")
+        println("i: $n, mean: $meanU, RE: $RE, collisions: $ncollisions")
+        println(C)
     end
 
     return meanU, RE, n
@@ -192,6 +205,9 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
 
     U_sum::Float64 = 0.
     U_mean::Float64 = 0.
+
+    Y = zeros(Int64, N)
+    prev_hit = 0
 
     for i = 1:N
         n += 1
@@ -222,9 +238,14 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
 
             updateStatePartB(s1, state, t)
 
+            if state.uav_status == :collided
+                @assert level == sim_stat.nlevel - 1
+                sim_stat.N_hit[level+1] += 1
+            end
+
             sim_stat.n_timestep += 1
 
-            if L != nothing && level < length(L) - 1
+            if L != nothing && level < sim_stat.nlevel - 1
                 dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
 
                 if t <= s1.sim_comm_loss_duration && dist < L[level + 2]
@@ -246,11 +267,34 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
         U_sum += U
         sim_stat.U[level+1] += (U - sim_stat.U[level+1]) / sim_stat.N[level+1]
 
+        if level == 0
+            Y[i] = sim_stat.N_hit[sim_stat.nlevel] - prev_hit
+            prev_hit = sim_stat.N_hit[sim_stat.nlevel]
+        end
+
         if verbose >= 1 && level == 0 && sim_stat.n_total >= nv
             U_mean = U_sum / n
 
             #println("i: ", sim_stat.n_total, ", mean: ", @neat(U_mean))
-            println("i: ", sim_stat.n_total, ", mean: ", U_mean)
+            #println("i: ", sim_stat.n_total, ", mean: ", U_mean)
+
+            if false
+                for l = 1:sim_stat.nlevel
+                    n = sim_stat.N[l]
+                    n_hit = sim_stat.N_hit[l]
+                    println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
+                end
+            end
+
+            p = prod(sim_stat.N_hit ./ sim_stat.N)
+            if typeof(R) == Int64
+                std_ = sqrt(var(Y[1:i]) / i)
+            else
+                std_ = sqrt(var(Y[1:i]) / (i * prod(R[2:end].^2)))
+            end
+            RE = std_ / p
+            println("i: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
+            #println()
 
             nv += nv_interval
         end
@@ -258,20 +302,24 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
 
     U_mean = U_sum / n
 
-    return U_mean
+    if level == 0
+        return U_mean, Y
+    else
+        return U_mean
+    end
 end
 
 
 function estimateExpectedUtilityIPS(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., verbose::Int64 = 0)
 
     #L = nothing
-    #R = 100000
+    #R = 1000000
 
     L = [Inf, 3] # level 0, level 1, ...
-    R = [66000, 10] # level 0, level 1, ...
+    R = [700000, 10] # level 0, level 1, ...
 
-    #L = [Inf, 3, 1] # level 0, level 1, ...
-    #R = [22000, 30, 30] # level 0, level 1, ...
+    #L = [Inf, 3, 2] # level 0, level 1, ...
+    #R = [100000, 7, 20] # level 0, level 1, ...
 
     if L == nothing
         max_level = 0
@@ -281,20 +329,40 @@ function estimateExpectedUtilityIPS(params::ScenarioOneParams; N_min::Int = 0, N
 
     sim_stat = SimStat(max_level)
 
-    #U = simulate(params, L, R, 0, nothing, sim_stat, verbose = verbose, nv = 1000, nv_interval = 1000)
-    U = simulate(params, L, R, 0, nothing, sim_stat, verbose = verbose)
+    U, Y = simulate(params, L, R, 0, nothing, sim_stat, verbose = verbose, nv = 1000, nv_interval = 1000)
 
     if verbose >= 1
         println("n: ", sim_stat.n_total, ", mean: ", U)
         #println("n: ", sim_stat.n_total, ", mean: ", @neat(U))
-        #println()
-        #for l = 0:max_level
-        #    n = sim_stat.N[l+1]
-        #    n_hit = sim_stat.N_hit[l+1]
+        println()
 
-        #    println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l+1]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
+        for l = 1:sim_stat.nlevel
+            n = sim_stat.N[l]
+            n_hit = sim_stat.N_hit[l]
+            println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
+        end
+
+        p = prod(sim_stat.N_hit ./ sim_stat.N)
+        if typeof(R) == Int64
+            std_ = sqrt(var(Y) / R[1])
+        else
+            std_ = sqrt(var(Y) / (R[1] * prod(R[2:end].^2)))
+        end
+        RE = std_ / p
+        println("n: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
+
+        #if false
+        #    n0 = R[1]
+        #    n1 = R[2]
+        #    p1 = sim_stat.N_hit[1] / sim_stat.N[1]
+        #    p2 = sim_stat.N_hit[2] / sim_stat.N[2]
+        #    var_p2 = 0.
+
+        #    p = p1 * p2
+        #    RE = sqrt(((1 - p1) / p1 + (1 - p2) / (n1 * p1 * p2) + (1 - 1 / n1) * var_p2 / (p1 * p2^2)) / n0)
+
+        #    println("p: $p, RE: $RE")
         #end
-        #println("Total nubmer of time steps: ", sim_stat.n_timestep)
     end
 end
 
@@ -409,7 +477,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
 end
 
 
-if false
+if true
     srand(uint(time()))
 
     version = "1.0"
@@ -474,7 +542,7 @@ if false
         params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
-        params.r_surveillance = 1.
+        params.r_surveillance = 10.
 
         params.uav_loc = (4, 5)
         # :stay, :back, :landing, :lower
@@ -490,13 +558,15 @@ if false
 
     end
 
-    params.uav_loc = (5, 4)
+    params.uav_loc = (9, 4)
     params.uav_policy = :stay
-    params.sim_comm_loss_duration_sigma = 0.
+    #params.sim_comm_loss_duration_sigma = 0.
 
     #simulate(params, draw = true, wait = true)
 
-    estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
+    #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
+    #estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
+    estimateExpectedUtilityIPS(params, N_min = 1000, N_max = 100000, RE_threshold = 0.01, verbose = 1)
 
     #evaluatePolicy("1.0", param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
 
@@ -591,8 +661,6 @@ if false
     #        end
     #    end
     #end
-
-    #estimateExpectedUtilityIPS(params, N_min = 1000, N_max = 100000, RE_threshold = 0.01, verbose = 1)
 end
 
 
