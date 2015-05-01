@@ -193,7 +193,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 end
 
 
-function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat; verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
+function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat; RE_threshold::Float64 = 0., verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
 
     if typeof(R) == Int64
         N = R
@@ -310,16 +310,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
 end
 
 
-function estimateExpectedUtilityIPS(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., verbose::Int64 = 0)
-
-    #L = nothing
-    #R = 1000000
-
-    L = [Inf, 3] # level 0, level 1, ...
-    R = [700000, 10] # level 0, level 1, ...
-
-    #L = [Inf, 3, 2] # level 0, level 1, ...
-    #R = [100000, 7, 20] # level 0, level 1, ...
+function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Vector{Float64}, R::Vector{Int64}; RE_threshold::Float64 = 0., verbose::Int64 = 0)
 
     if L == nothing
         max_level = 0
@@ -329,10 +320,10 @@ function estimateExpectedUtilityIPS(params::ScenarioOneParams; N_min::Int = 0, N
 
     sim_stat = SimStat(max_level)
 
-    U, Y = simulate(params, L, R, 0, nothing, sim_stat, verbose = verbose, nv = 1000, nv_interval = 1000)
+    U, Y = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
 
     if verbose >= 1
-        println("n: ", sim_stat.n_total, ", mean: ", U)
+        #println("n: ", sim_stat.n_total, ", mean: ", U)
         #println("n: ", sim_stat.n_total, ", mean: ", @neat(U))
         println()
 
@@ -477,7 +468,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
 end
 
 
-if true
+if false
     srand(uint(time()))
 
     version = "1.0"
@@ -566,7 +557,19 @@ if true
 
     #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
     #estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
-    estimateExpectedUtilityIPS(params, N_min = 1000, N_max = 100000, RE_threshold = 0.01, verbose = 1)
+
+
+    #L = nothing
+    #R = 1000000
+
+    L = [Inf, 3] # level 0, level 1, ...
+    R = [700000, 10] # level 0, level 1, ...
+
+    #L = [Inf, 3, 2] # level 0, level 1, ...
+    #R = [100000, 7, 20] # level 0, level 1, ...
+
+    estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
+
 
     #evaluatePolicy("1.0", param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
 
