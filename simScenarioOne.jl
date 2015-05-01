@@ -11,6 +11,7 @@ if !__PARALLEL__
 using ScenarioOneVisualizer_
 end
 
+using JSON
 using Base.Test
 
 
@@ -209,6 +210,8 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
     Y = zeros(Int64, N)
     prev_hit = 0
 
+    LOG = {}
+
     for i = 1:N
         n += 1
         sim_stat.N[level+1] += 1
@@ -272,19 +275,20 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             prev_hit = sim_stat.N_hit[sim_stat.nlevel]
         end
 
-        if verbose >= 1 && level == 0 && sim_stat.n_total >= nv
+        if level == 0 && sim_stat.n_total >= nv
             U_mean = U_sum / n
 
             #println("i: ", sim_stat.n_total, ", mean: ", @neat(U_mean))
             #println("i: ", sim_stat.n_total, ", mean: ", U_mean)
 
-            if false
-                for l = 1:sim_stat.nlevel
-                    n = sim_stat.N[l]
-                    n_hit = sim_stat.N_hit[l]
-                    println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
-                end
-            end
+            #if false
+            #    for l = 1:sim_stat.nlevel
+            #        n = sim_stat.N[l]
+            #        n_hit = sim_stat.N_hit[l]
+            #        #println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
+            #        println("level: ", l, ", n: ", n, ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
+            #    end
+            #end
 
             p = prod(sim_stat.N_hit ./ sim_stat.N)
             if typeof(R) == Int64
@@ -293,8 +297,13 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
                 std_ = sqrt(var(Y[1:i]) / (i * prod(R[2:end].^2)))
             end
             RE = std_ / p
-            println("i: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
+
+            if verbose >= 1
+                println("i: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
+            end
             #println()
+
+            push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
 
             nv += nv_interval
         end
@@ -303,7 +312,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
     U_mean = U_sum / n
 
     if level == 0
-        return U_mean, Y
+        return U_mean, Y, LOG
     else
         return U_mean
     end
@@ -320,7 +329,7 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Vector{Float64}
 
     sim_stat = SimStat(max_level)
 
-    U, Y = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
+    U, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
 
     if verbose >= 1
         #println("n: ", sim_stat.n_total, ", mean: ", U)
@@ -332,16 +341,23 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Vector{Float64}
             n_hit = sim_stat.N_hit[l]
             println("level: ", l, ", n: ", n, ", U: ", @neat(sim_stat.U[l]), ", p: ", @neat(n_hit/n), " ($n_hit/$n)")
         end
+    end
 
-        p = prod(sim_stat.N_hit ./ sim_stat.N)
-        if typeof(R) == Int64
-            std_ = sqrt(var(Y) / R[1])
-        else
-            std_ = sqrt(var(Y) / (R[1] * prod(R[2:end].^2)))
-        end
-        RE = std_ / p
+    p = prod(sim_stat.N_hit ./ sim_stat.N)
+    if typeof(R) == Int64
+        std_ = sqrt(var(Y) / R[1])
+    else
+        std_ = sqrt(var(Y) / (R[1] * prod(R[2:end].^2)))
+    end
+    RE = std_ / p
+
+    if verbose >= 1
         println("n: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
+    end
 
+    push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
+
+    if verbose >= 1
         #if false
         #    n0 = R[1]
         #    n1 = R[2]
@@ -355,6 +371,8 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Vector{Float64}
         #    println("p: $p, RE: $RE")
         #end
     end
+
+    return LOG
 end
 
 
