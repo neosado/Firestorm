@@ -194,7 +194,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 end
 
 
-function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat; RE_threshold::Float64 = 0., verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
+function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat, T; RE_threshold::Float64 = 0., verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
 
     if typeof(R) == Int64
         N = R
@@ -262,8 +262,15 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
         end
 
         if bHitLevel
-            U = simulate(params, L, R, level + 1, (s1, state, t, U), sim_stat, verbose = verbose)
+            T_ = {}
+            push!(T, (1, T_))
+            U = simulate(params, L, R, level + 1, (s1, state, t, U), sim_stat, T_, verbose = verbose)
         else
+            if state.uav_status == :collided
+                push!(T, (1, {}))
+            else
+                push!(T, (0, {}))
+            end
             sim_stat.n_total += 1
         end
 
@@ -328,8 +335,9 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
     end
 
     sim_stat = SimStat(max_level)
+    T = {}
 
-    U, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
+    U, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, T, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
 
     if verbose >= 1
         #println("n: ", sim_stat.n_total, ", mean: ", U)
@@ -358,25 +366,44 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
     push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
 
     if verbose >= 1
-        #if false
-        #    n0 = R[1]
-        #    n1 = R[2]
-        #    p1 = sim_stat.N_hit[1] / sim_stat.N[1]
-        #    p2 = sim_stat.N_hit[2] / sim_stat.N[2]
-        #    var_p2 = 0.
 
-        #    p = p1 * p2
-        #    RE = sqrt(((1 - p1) / p1 + (1 - p2) / (n1 * p1 * p2) + (1 - 1 / n1) * var_p2 / (p1 * p2^2)) / n0)
+        n0 = R[1]
+        n1 = R[2]
+        p1 = sim_stat.N_hit[1] / sim_stat.N[1]
+        p2 = sim_stat.N_hit[2] / sim_stat.N[2]
 
-        #    println("p: $p, RE: $RE")
-        #end
+        S = {}
+        for i = 1:n1
+            push!(S, Int64[])
+        end
+
+        for (t1, T1) in T
+            i = 1
+            for (t2, T2) in T1
+                push!(S[i], t2)
+                i += 1
+            end
+        end
+
+        S_ = zeros(n1)
+        for i = 1:n1
+            S_[i] = mean(S[i])
+        end
+
+        var_p2 = var(S_)
+        println("var(p2): ", var_p2, ", c: ", var_p2 / p2^2)
+
+        p = p1 * p2
+        RE = sqrt(((1 - p1) / p1 + (1 - p2) / (n1 * p1 * p2) + (1 - 1 / n1) * var_p2 / (p1 * p2^2)) / n0)
+
+        println("p: $p, RE: $RE")
     end
 
     return LOG
 end
 
 
-function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
+function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
 
     params = generateParams(param_set_num)
 
@@ -385,56 +412,46 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
     if version == "0.1"
         @assert aircraft_traj_uncertainty != nothing
 
-        params.wf_sim_time = params.n
-        params.wf_p_fire = 0.12
+        params.sim_comm_loss_duration_mu = 10.
 
-        params.aircraft_traj_uncertainty = aircraft_traj_uncertainty
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
+        params.wf_p_fire = 0.06
 
-    elseif version == "0.2" || version == "0.2.1"
+        params.aircraft_traj_uncertainty = 1.
+
+    elseif version == "0.2"
         @assert sim_comm_loss_duration_mu != nothing
 
         params.sim_comm_loss_duration_mu = sim_comm_loss_duration_mu
         params.sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma
 
-        params.wf_sim_time = int(params.n * 2)
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
+        params.aircraft_traj_uncertainty = 0.
         params.aircraft_traj_adaptive = true
         params.aircraft_operation_time_limit = 30
-
-    elseif version == "0.3"
-        @assert sim_continue
-
-        params.sim_time = 30
-        params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 1.
-        params.sim_continue = true
-
-        params.wf_sim_time = params.n * 2
-        params.wf_p_fire = 0.06
-
-        params.r_surveillance = r_surveillance
-
-        params.aircraft_traj_adaptive = true
-        params.aircraft_operation_time_limit = 0
 
     elseif version == "1.0"
         @assert uav_surveillance_pattern != nothing
 
         params.sim_time = 30
         params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 1.
+        params.sim_comm_loss_duration_sigma = 0.
         params.sim_continue = true
 
         params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
         params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
-        params.r_surveillance = 10.
+        params.r_surveillance = r_surveillance
 
         params.uav_surveillance_pattern = uav_surveillance_pattern
         params.uav_cas = :lower
 
+        params.aircraft_traj_uncertainty = 0.
         params.aircraft_traj_adaptive = true
         params.aircraft_operation_time_limit = 0
 
@@ -495,23 +512,27 @@ if false
     params = generateParams(param_set)
 
     if version == "0.1"
-        params.sim_comm_loss_duration_mu = params.n
+        params.sim_comm_loss_duration_mu = 10.
 
-        params.wf_p_fire = 0.12
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
+        params.wf_p_fire = 0.06
 
         params.uav_loc = (4, 5)
         # :stay, :back, :landing
         params.uav_policy = :back
+
         params.aircraft_traj_uncertainty = 1.
 
     elseif version == "0.2"
         # 68% within 1 standard deviation
         # 95% within 2 standard deviation
         # 99.7% within 3 standard deviation
-        params.sim_comm_loss_duration_mu = 10.
+        params.sim_comm_loss_duration_mu = 15.
         params.sim_comm_loss_duration_sigma = 1.
 
-        params.wf_sim_time = params.n * 2
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
         params.uav_loc = (4, 5)
@@ -522,29 +543,10 @@ if false
         params.aircraft_traj_adaptive = true
         params.aircraft_operation_time_limit = 30
 
-    elseif version == "0.3"
-        params.sim_time = 30
-        params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 1.
-        params.sim_continue = true
-
-        params.wf_sim_time = params.n * 2
-        params.wf_p_fire = 0.06
-
-        params.r_surveillance = 1.
-
-        params.uav_loc = (4, 5)
-        # :stay, :back, :landing, :lower
-        params.uav_policy = :back
-
-        params.aircraft_traj_uncertainty = 0.
-        params.aircraft_traj_adaptive = true
-        params.aircraft_operation_time_limit = 0
-
     elseif version == "1.0"
         params.sim_time = 30
         params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 1.
+        params.sim_comm_loss_duration_sigma = 0.
         params.sim_continue = true
 
         params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
@@ -567,11 +569,11 @@ if false
 
     end
 
-    params.uav_loc = (9, 4)
-    params.uav_policy = :stay
+    #params.uav_loc = (9, 4)
+    #params.uav_policy = :stay
     #params.sim_comm_loss_duration_sigma = 0.
 
-    #simulate(params, draw = true, wait = true)
+    simulate(params, draw = true, wait = true)
 
     #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
     #estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
@@ -580,13 +582,18 @@ if false
     #L = nothing
     #R = 1000000
 
-    L = [Inf, 3] # level 0, level 1, ...
-    R = [700000, 10] # level 0, level 1, ...
+    #L = [Inf, 3] # level 0, level 1, ...
+    #R = [700000, 10] # level 0, level 1, ...
 
     #L = [Inf, 3, 2] # level 0, level 1, ...
     #R = [100000, 7, 20] # level 0, level 1, ...
 
-    estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
+    #L = nothing
+    #R = 1000
+    #L = [Inf, 3]
+    #R = [100000, 10]
+
+    #estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
 
 
     #evaluatePolicy("1.0", param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
