@@ -16,7 +16,7 @@ using HDF5, JLD
 include("simScenarioOne.jl")
 
 
-function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symbol; datafile::ASCIIString = "s1results.jld", update::Bool = false, sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
+function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symbol; datafile::ASCIIString = "s1results.jld", update::Bool = false, sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Union(Float64, Nothing) = nothing, uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 100, N_max::Int = 1000, RE_threshold::Float64 = 0.01, bParallel::Bool = false)
 
     if isfile(datafile)
         database = load(datafile, "DATA")
@@ -28,17 +28,14 @@ function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::
         @assert aircraft_traj_uncertainty != nothing
         key = hash([param_set_num, policy, aircraft_traj_uncertainty])
 
-    elseif version == "0.2" || version == "0.2.1"
+    elseif version == "0.2"
         @assert sim_comm_loss_duration_mu != nothing
         key = hash([param_set_num, policy, sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma])
 
-    elseif version == "0.3"
-        @assert sim_continue
-        key = hash([param_set_num, policy, r_surveillance])
-
     elseif version == "1.0"
+        @assert r_surveillance != nothing
         @assert uav_surveillance_pattern != nothing
-        key = hash([param_set_num, policy, uav_surveillance_pattern])
+        key = hash([param_set_num, policy, r_surveillance, uav_surveillance_pattern])
 
     end
 
@@ -49,7 +46,7 @@ function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::
         N = database[key]["N"]
 
     else
-        U, RE, N, params = evaluatePolicy(version, param_set_num, policy, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, bParallel = bParallel)
+        U, RE, N, params = evaluatePolicy(version, param_set_num, policy, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, bParallel = bParallel)
         
         record = Dict{ASCIIString, Any}()
         record["params"] = params
@@ -71,147 +68,146 @@ function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::
 end
 
 
-function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symbol; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
+function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symbol; draw::Bool = true, fig = nothing, plots::Union(Symbol, Vector{Symbol}) = :all, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Union(Float64, Nothing) = nothing, uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, bLabel::Bool = true)
     
-    U, RE, N, params = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
-
-    # debug
-    #println(map(x -> round(signif(x, 4), 4), U))
-    #println(map(x -> round(signif(x, 4), 4), RE))
+    U, RE, N, params = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
 
     if draw
         if fig == nothing
             fig = figure(facecolor = "white")
         end
 
-        ax1 = fig[:add_subplot](221)
-        ax1[:set_xlim](-0.5, 10.5)
-        ax1[:set_ylim](-0.5, 10.5)
-        ax1[:set_aspect]("equal")
-        ax1[:invert_yaxis]()
-        ax1[:set_xticks]([0.5:(params.n - 1.5)])
-        ax1[:set_yticks]([0.5:(params.n - 1.5)])
-        ax1[:set_xticklabels]([])
-        ax1[:set_yticklabels]([])
-        ax1[:grid](true)
-        ax1[:set_title]("Scenario")
-
-        params.uav_loc = (4, 5)
-        s1 = ScenarioOne(params)
-        initTrajectories(s1)
-
-        B = zeros(Bool, params.n, params.n)
-        if isa(params.wf_init_loc, (Int64, Int64))
-            B[params.wf_init_loc[1], params.wf_init_loc[2]] = true
+        if plots == :all
+            plots = [:scenario, :utility, :RE, :N]
+        elseif typeof(plots) == Symbol
+            plots = [plots]
         else
-            for (row, col) in params.wf_init_loc
-                B[row, col] = true
-            end
+            plots = plots
         end
-        ax1[:imshow](B, cmap = "Reds", alpha = 0.5, interpolation = "none")
-        #ax1[:plot](params.wf_init_loc[2] - 1, params.wf_init_loc[1] - 1, "rs", alpha = 0.5, markersize = 50 / params.n)
+        nplots = length(plots)
 
-        #ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
-        path = zeros(Int64, length(s1.aircraft_dpath), 2)
-        for t = 1:length(s1.aircraft_dpath)
-            path[t, 1], path[t, 2] = s1.aircraft_dpath[t]
-        end
-        ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "c--")
-
-        #ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
-        path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
-        for t = 1:length(s1.aircraft_planned_dpath)
-            path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
-        end
-        ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
-
-        #ax1[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
-        ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 50 / params.n)
-
-        ax1[:plot](params.uav_base_loc[2] - 1, params.uav_base_loc[1] - 1, "kx")
-
-        if s1.uav_path != nothing
-            #ax1[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
-            #ax1[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
-
-            path = zeros(Int64, length(s1.uav_dpath), 2)
-            for t = 1:length(s1.uav_dpath)
-                path[t, 1], path[t, 2] = s1.uav_dpath[t]
-            end
-            ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "r-.")
-        end
-
-        ax1[:plot](params.uav_loc[2] - 1, params.uav_loc[1] - 1, "mo", markersize = 50 / params.n)
-
-        #ax1[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
-
-
-        ax2 = fig[:add_subplot](222)
-        ax2[:set_aspect]("equal")
-        ax2[:invert_yaxis]()
-        ax2[:set_xticks]([0.5:(params.n - 1.5)])
-        ax2[:set_yticks]([0.5:(params.n - 1.5)])
-        ax2[:set_xticklabels]([])
-        ax2[:set_yticklabels]([])
-        ax2[:grid](true)
-        ax2[:set_title]("Utility")
-
-        if sim_continue
-            vmax_ = 10
+        if nplots == 1
+            plot_base = 110
+        elseif nplots == 2
+            plot_base = 120
         else
-            vmax_ = 0
+            plot_base = 220
         end
-        U_map = ax2[:imshow](U, cmap = "gray", alpha = 0.7, interpolation = "none", vmin = -200, vmax = vmax_)
-        colorbar(U_map)
 
-        #ax2[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+        for i = 1:nplots
+            pl = plots[i]
 
+            ax = fig[:add_subplot](plot_base + i)
+            ax[:set_xlim](-0.5, 10.5)
+            ax[:set_ylim](-0.5, 10.5)
+            ax[:set_aspect]("equal")
+            ax[:invert_yaxis]()
+            ax[:set_xticks]([0.5:(params.n - 1.5)])
+            ax[:set_yticks]([0.5:(params.n - 1.5)])
+            ax[:set_xticklabels]([])
+            ax[:set_yticklabels]([])
+            ax[:grid](true)
 
-        ax3 = fig[:add_subplot](223)
-        ax3[:set_aspect]("equal")
-        ax3[:invert_yaxis]()
-        ax3[:set_xticks]([0.5:(params.n - 1.5)])
-        ax3[:set_yticks]([0.5:(params.n - 1.5)])
-        ax3[:set_xticklabels]([])
-        ax3[:set_yticklabels]([])
-        ax3[:grid](true)
-        ax3[:set_title]("RE")
+            if bLabel
+                if pl == :scenario
+                    ax[:set_title]("Scenario")
+                elseif pl == :utility
+                    ax[:set_title]("Utility")
+                elseif pl == :RE
+                    ax[:set_title]("RE")
+                elseif pl == :N
+                    ax[:set_title]("N")
+                end
+            end
 
-        RE_map = ax3[:imshow](RE, cmap = "gray_r", alpha = 0.7, interpolation = "none")
-        colorbar(RE_map)
+            if pl == :scenario
+                params.uav_loc = (4, 5)
+                s1 = ScenarioOne(params)
+                initTrajectories(s1)
 
-        #ax3[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+                B = zeros(Bool, params.n, params.n)
+                if isa(params.wf_init_loc, (Int64, Int64))
+                    B[params.wf_init_loc[1], params.wf_init_loc[2]] = true
+                else
+                    for (row, col) in params.wf_init_loc
+                        B[row, col] = true
+                    end
+                end
+                ax[:imshow](B, cmap = "Reds", alpha = 0.5, interpolation = "none")
+                #ax[:plot](params.wf_init_loc[2] - 1, params.wf_init_loc[1] - 1, "rs", alpha = 0.5, markersize = 50 / params.n)
 
+                #ax[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
+                path = zeros(Int64, length(s1.aircraft_dpath), 2)
+                for t = 1:length(s1.aircraft_dpath)
+                    path[t, 1], path[t, 2] = s1.aircraft_dpath[t]
+                end
+                ax[:plot](path[:, 2] - 1, path[:, 1] - 1, "c--")
 
-        ax4 = fig[:add_subplot](224)
-        ax4[:set_xlim](-0.5, 10.5)
-        ax4[:set_ylim](-0.5, 10.5)
-        ax4[:set_aspect]("equal")
-        ax4[:invert_yaxis]()
-        ax4[:set_xticks]([0.5:(params.n - 1.5)])
-        ax4[:set_yticks]([0.5:(params.n - 1.5)])
-        ax4[:set_xticklabels]([])
-        ax4[:set_yticklabels]([])
-        ax4[:grid](true)
-        ax4[:set_title]("N")
+                #ax[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+                path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
+                for t = 1:length(s1.aircraft_planned_dpath)
+                    path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
+                end
+                ax[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
 
-        N_map = ax4[:imshow](N, cmap = "gray_r", alpha = 0.2, interpolation = "none")
-        colorbar(N_map)
+                #ax[:plot](s1.aircraft_path[1, 2] - 1, s1.aircraft_path[1, 1] - 1, "k.")
+                ax[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 50 / params.n)
 
-        for i = 1:params.n
-            for j = 1:params.n
-                ax4[:text](j - 1, i - 1, N[i, j], size = "5", horizontalalignment = "center", verticalalignment = "center")
+                ax[:plot](params.uav_base_loc[2] - 1, params.uav_base_loc[1] - 1, "kx")
+
+                if s1.uav_path != nothing
+                    #ax[:plot](s1.uav_path[:, 2] - 1, s1.uav_path[:, 1] - 1, "r-.")
+                    #ax[:plot](s1.uav_path[1, 2] - 1, s1.uav_path[1, 1] - 1, "k.")
+
+                    path = zeros(Int64, length(s1.uav_dpath), 2)
+                    for t = 1:length(s1.uav_dpath)
+                        path[t, 1], path[t, 2] = s1.uav_dpath[t]
+                    end
+                    ax[:plot](path[:, 2] - 1, path[:, 1] - 1, "r-.")
+                end
+
+                ax[:plot](params.uav_loc[2] - 1, params.uav_loc[1] - 1, "mo", markersize = 50 / params.n)
+
+                #ax[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax[:transAxes])
+
+            elseif pl == :utility
+                #vmin_ = params.r_dist[1, 2]
+                #vmax_ = params.r_surveillance * params.sim_time
+                #vmin_ = -1000
+                #vmax_ = 100
+                #U_map = ax[:imshow](U, cmap = "gray", alpha = 0.7, interpolation = "none", vmin = vmin_, vmax = vmax_)
+                U_map = ax[:imshow](U, cmap = "gray", alpha = 0.7, interpolation = "none")
+                colorbar(U_map)
+
+                #ax[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax[:transAxes])
+
+            elseif pl == :RE
+                RE_map = ax[:imshow](RE, cmap = "gray_r", alpha = 0.7, interpolation = "none")
+                colorbar(RE_map)
+
+                #ax[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax[:transAxes])
+
+            elseif pl == :N
+                N_map = ax[:imshow](N, cmap = "gray_r", alpha = 0.2, interpolation = "none")
+                #colorbar(N_map)
+
+                for i = 1:params.n
+                    for j = 1:params.n
+                        ax[:text](j - 1, i - 1, N[i, j], size = "5", horizontalalignment = "center", verticalalignment = "center")
+                    end
+                end
+
+                #ax[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax[:transAxes])
+
             end
         end
-
-        #ax4[:text](0.5, -0.02, "", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
     end
 
     return U, RE, N, params
 end
 
 
-function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., sim_continue::Bool = false, r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, T::Float64 = 1., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
+function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Union(Float64, Nothing) = nothing, uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, T::Float64 = 1., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing)
 
     if version == "0.1"
         policies = [:stay, :back, :landing]
@@ -234,7 +230,7 @@ function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = tru
             N_ = Array(Any, npatterns)
 
             for i = 1:npatterns
-                U_[i], RE_[i], N_[i], params_ = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = patterns[i], aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+                U_[i], RE_[i], N_[i], params_ = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, r_surveillance = r_surveillance, uav_surveillance_pattern = patterns[i], aircraft_traj_uncertainty = aircraft_traj_uncertainty)
             end
 
             U[policy] = zeros(params_.n, params_.n)
@@ -276,7 +272,7 @@ function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = tru
         end
     else
         for policy in policies
-            U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, sim_continue = sim_continue, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
+            U[policy], RE[policy], N[policy], params[policy] = retrieveEvaluation(version, param_set_num, policy, datafile = datafile, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, aircraft_traj_uncertainty = aircraft_traj_uncertainty)
         end
     end
 
@@ -374,8 +370,13 @@ end
 
 if false
     #retrieveEvaluation("0.1", 1, :back, datafile = "s1results_v0_1.jld", aircraft_traj_uncertainty = 0.)
+
     #plotEvaluation("0.1", 1, :back, aircraft_traj_uncertainty = 1.)
-    plotPolicy("0.1", 1, aircraft_traj_uncertainty = 1.)
+    #plotEvaluation("0.2", 1, :back, sim_comm_loss_duration_mu = 5., sim_comm_loss_duration_sigma = 0.)
+    #plotEvaluation("1.0", 1, :back, r_surveillance = 10., uav_surveillance_pattern = :mower)
+
+    #plotPolicy("0.1", 1, aircraft_traj_uncertainty = 1.)
+
     readline()
 end
 

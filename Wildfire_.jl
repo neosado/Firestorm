@@ -231,19 +231,26 @@ function wfNextState(wm::Wildfire, B::BurningMatrix, F::FuelLevelMatrix)
     return B_, F_
 end
 
-function wfNextState(wm::Wildfire)
+function wfNextState(wm::Wildfire; bFuel::Bool = false)
 
-    #wm.F[wm.B] -= 1
-    #wm.F[wm.F .< 0] = 0
+    if bFuel
+        wm.F[wm.B] -= 1
+        wm.F[wm.F .< 0] = 0
 
-    #P = burningProbMatrix(wm, wm.B, wm.F)
-    P = burningProbMatrix(wm, wm.B)
+        P = burningProbMatrix(wm, wm.B, wm.F)
+    else
+        P = burningProbMatrix(wm, wm.B)
+    end
+
     R = rand((wm.nrow, wm.ncol))
 
     wm.B = P .> R
 
-    #return wm.B, wm.F
-    return wm.B
+    if bFuel
+        return wm.B, wm.F
+    else
+        return wm.B
+    end
 end
 
 
