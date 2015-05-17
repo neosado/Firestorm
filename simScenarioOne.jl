@@ -25,6 +25,7 @@ type SimStat
     nlevel::Int64
 
     U::Vector{Float64}
+    U2::Float64
 
     N::Vector{Int64}
     N_hit::Vector{Int64}
@@ -40,6 +41,7 @@ type SimStat
         self.nlevel = max_level + 1
 
         self.U = zeros(Float64, self.nlevel)
+        self.U2 = 0.
 
         self.N = zeros(Int64, self.nlevel)
         self.N_hit = zeros(Int64, self.nlevel)
@@ -120,6 +122,7 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
 
     t = 0
     U = 0.
+    bCollided = false
 
     while !isEndState(s1, state, t)
         updateStatePartA(s1, state, t)
@@ -135,6 +138,10 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
 
         updateStatePartB(s1, state, t)
 
+        if state.uav_status == :collided
+            bCollided = true
+        end
+
         t += 1
     end
 
@@ -142,15 +149,17 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
         saveAnimation(s1v, repeat = true)
     end
 
-    return U
+    return U, bCollided
 end
 
 
-function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., verbose::Int64 = 0)
+function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., MS::Bool = false, verbose::Int64 = 0)
 
     meanU = 0.
     ssU = 0.
     RE = 0.
+
+    meanU1 = 0.
 
     n = 0
     # debug
@@ -159,12 +168,14 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     for i = 1:N_max
         n += 1
 
-        U = simulate(params)
+        U, bCollided = simulate(params)
         # debug
         #println(U)
 
-        if U <= -10000
+        if bCollided
             ncollisions += 1
+        else
+            meanU1 += (U - meanU1) / (i - ncollisions)
         end
 
         meanU += (U - meanU) / i
@@ -187,14 +198,49 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     if verbose >= 1
         #println("n: $n, mean: $meanU, RE: $RE")
         println("i: $n, mean: $meanU, RE: $RE, collisions: $ncollisions")
-        println(C)
     end
 
-    return meanU, RE, n
+    if MS
+        meanU_ = NaN
+        RE_ = NaN
+        n_ = 0
+
+        if ncollisions < int64(n / 100)
+            L = [Inf, 3]
+            #R = [max(int64(n / 10), 10000), 10]
+            R = [n, 10]
+
+            sim_stat = SimStat(length(L) - 1)
+
+            U_, p, RE_, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
+
+            if verbose >= 1
+                for l = 1:sim_stat.nlevel
+                    n_ = sim_stat.N[l]
+                    n_hit = sim_stat.N_hit[l]
+                    println("level: ", l, ", n: ", n_, ", U: ", @neat(sim_stat.U[l]), ", p: ", @neat(n_hit/n), " ($n_hit/$n_)")
+                end
+            end
+
+            meanU_ = (1 - p) * meanU1 + p * sim_stat.U2
+            RE_ = NaN
+            n_ = int64(sim_stat.n_timestep / params.sim_time)
+
+            if verbose >= 1
+                println("U: ", meanU, ", ncoll.: ", ncollisions, ", U1: ", meanU1, ", U2: ", sim_stat.U2, ", p: ", p, ", U_: ", meanU_)
+            end
+        end
+
+        return meanU, RE, n, meanU_, RE_, n_
+
+    else
+        return meanU, RE, n
+
+    end
 end
 
 
-function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat, T; RE_threshold::Float64 = 0., verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
+function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing), R::Union(Vector{Int64}, Int64), level::Int64, args::Union((ScenarioOne, ScenarioOneState, Int64, Float64), Nothing), sim_stat::SimStat, T = nothing; RE_threshold::Float64 = 0., verbose::Int64 = 0, nv::Int64 = 100, nv_interval::Int64 = 100)
 
     if typeof(R) == Int64
         N = R
@@ -262,20 +308,32 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
         end
 
         if bHitLevel
-            T_ = {}
-            push!(T, (1, T_))
+            if T == nothing
+                T_ = nothing
+            else
+                T_ = {}
+                push!(T, (1, T_))
+            end
+
             U = simulate(params, L, R, level + 1, (s1, state, t, U), sim_stat, T_, verbose = verbose)
         else
-            if state.uav_status == :collided
-                push!(T, (1, {}))
-            else
-                push!(T, (0, {}))
+            if T != nothing
+                if state.uav_status == :collided
+                    push!(T, (1, {}))
+                else
+                    push!(T, (0, {}))
+                end
             end
+
             sim_stat.n_total += 1
         end
 
         U_sum += U
         sim_stat.U[level+1] += (U - sim_stat.U[level+1]) / sim_stat.N[level+1]
+
+        if state.uav_status == :collided
+            sim_stat.U2 += (U - sim_stat.U2) / sim_stat.N_hit[level+1]
+        end
 
         if level == 0
             Y[i] = sim_stat.N_hit[sim_stat.nlevel] - prev_hit
@@ -283,7 +341,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
         end
 
         if level == 0 && sim_stat.n_total >= nv
-            U_mean = U_sum / n
+            #U_mean = U_sum / n
 
             #println("i: ", sim_stat.n_total, ", mean: ", @neat(U_mean))
             #println("i: ", sim_stat.n_total, ", mean: ", U_mean)
@@ -313,13 +371,31 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
 
             nv += nv_interval
+
+            if RE_threshold != 0 && RE < RE_threshold
+                break
+            end
         end
     end
 
     U_mean = U_sum / n
 
     if level == 0
-        return U_mean, Y, LOG
+        p = prod(sim_stat.N_hit ./ sim_stat.N)
+        if typeof(R) == Int64
+            std_ = sqrt(var(Y) / R[1])
+        else
+            std_ = sqrt(var(Y) / (R[1] * prod(R[2:end].^2)))
+        end
+        RE = std_ / p
+
+        if verbose >= 1
+            println("n: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
+        end
+
+        push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
+
+        return U_mean, p, RE, Y, LOG
     else
         return U_mean
     end
@@ -337,7 +413,7 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
     sim_stat = SimStat(max_level)
     T = {}
 
-    U, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, T, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
+    U, p, RE, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, T, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
 
     if verbose >= 1
         #println("n: ", sim_stat.n_total, ", mean: ", U)
@@ -351,59 +427,44 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
         end
     end
 
-    p = prod(sim_stat.N_hit ./ sim_stat.N)
-    if typeof(R) == Int64
-        std_ = sqrt(var(Y) / R[1])
-    else
-        std_ = sqrt(var(Y) / (R[1] * prod(R[2:end].^2)))
-    end
-    RE = std_ / p
+    #if verbose >= 1
+    #    n0 = R[1]
+    #    n1 = R[2]
+    #    p1 = sim_stat.N_hit[1] / sim_stat.N[1]
+    #    p2 = sim_stat.N_hit[2] / sim_stat.N[2]
 
-    if verbose >= 1
-        println("n: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
-    end
+    #    S = {}
+    #    for i = 1:n1
+    #        push!(S, Int64[])
+    #    end
 
-    push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
+    #    for (t1, T1) in T
+    #        i = 1
+    #        for (t2, T2) in T1
+    #            push!(S[i], t2)
+    #            i += 1
+    #        end
+    #    end
 
-    if verbose >= 1
+    #    S_ = zeros(n1)
+    #    for i = 1:n1
+    #        S_[i] = mean(S[i])
+    #    end
 
-        n0 = R[1]
-        n1 = R[2]
-        p1 = sim_stat.N_hit[1] / sim_stat.N[1]
-        p2 = sim_stat.N_hit[2] / sim_stat.N[2]
+    #    var_p2 = var(S_)
+    #    println("var(p2): ", var_p2, ", c: ", var_p2 / p2^2)
 
-        S = {}
-        for i = 1:n1
-            push!(S, Int64[])
-        end
+    #    p = p1 * p2
+    #    RE = sqrt(((1 - p1) / p1 + (1 - p2) / (n1 * p1 * p2) + (1 - 1 / n1) * var_p2 / (p1 * p2^2)) / n0)
 
-        for (t1, T1) in T
-            i = 1
-            for (t2, T2) in T1
-                push!(S[i], t2)
-                i += 1
-            end
-        end
-
-        S_ = zeros(n1)
-        for i = 1:n1
-            S_[i] = mean(S[i])
-        end
-
-        var_p2 = var(S_)
-        println("var(p2): ", var_p2, ", c: ", var_p2 / p2^2)
-
-        p = p1 * p2
-        RE = sqrt(((1 - p1) / p1 + (1 - p2) / (n1 * p1 * p2) + (1 - 1 / n1) * var_p2 / (p1 * p2^2)) / n0)
-
-        println("p: $p, RE: $RE")
-    end
+    #    println("p: $p, RE: $RE")
+    #end
 
     return LOG
 end
 
 
-function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., bParallel::Bool = false)
+function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., MS::Bool = false, bParallel::Bool = false)
 
     params = generateParams(param_set_num)
 
@@ -439,7 +500,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
 
         params.sim_time = 30
         params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 0.
+        params.sim_comm_loss_duration_sigma = 1.
         params.sim_continue = true
 
         params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
@@ -462,14 +523,30 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
     RE = zeros(params.n, params.n)
     N = zeros(Int64, params.n, params.n)
 
+    if MS
+        U_ = zeros(params.n, params.n)
+        RE_ = zeros(params.n, params.n)
+        N_ = zeros(Int64, params.n, params.n)
+    end
+
     if bParallel == false
         for i = 1:params.n
             for j = 1:params.n
                 params.uav_loc = (i, j)
 
-                U[i, j], RE[i, j], N[i, j] = estimateExpectedUtility(params, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold)
+                result = estimateExpectedUtility(params, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, MS = MS)
+
+                U[i, j] = result[1]
+                RE[i, j] = result[2]
+                N[i, j] = result[3]
 
                 #println("($i, $j), mean: ", int(U[i, j]), ", RE: ", signif(RE[i, j], 4), ", N: ", N[i, j])
+
+                if MS
+                    U_[i, j] = result[4]
+                    RE_[i, j] = result[5]
+                    N_[i, j] = result[6]
+                end
             end
         end
 
@@ -481,13 +558,19 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
             end
         end
 
-        results = pmap(x -> (params.uav_loc = x; estimateExpectedUtility(params, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold)), lst)
+        results = pmap(x -> (params.uav_loc = x; estimateExpectedUtility(params, N_min = N_min, N_max = N_max, RE_threshold = RE_threshold, MS = MS)), lst)
 
         k = 1
         for result in results
             U[k] = result[1]
             RE[k] = result[2]
             N[k] = result[3]
+
+            if MS
+                U_[k] = result[4]
+                RE_[k] = result[5]
+                N_[k] = result[6]
+            end
 
             k += 1
         end
@@ -499,7 +582,11 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
     #println(round(RE, 4))
     #println(N)
 
-    return U, RE, N, params
+    if MS
+        return params, U, RE, N, U_, RE_, N_
+    else
+        return params, U, RE, N
+    end
 end
 
 
@@ -546,7 +633,7 @@ if false
     elseif version == "1.0"
         params.sim_time = 30
         params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 0.
+        params.sim_comm_loss_duration_sigma = 1.
         params.sim_continue = true
 
         params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
@@ -569,14 +656,14 @@ if false
 
     end
 
-    #params.uav_loc = (9, 4)
-    #params.uav_policy = :stay
+    params.uav_loc = (9, 4)
+    params.uav_policy = :stay
     #params.sim_comm_loss_duration_sigma = 0.
 
-    simulate(params, draw = true, wait = true)
+    #simulate(params, draw = true, wait = true)
 
     #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
-    #estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
+    #estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true, verbose = 1)
 
 
     #L = nothing
@@ -596,7 +683,7 @@ if false
     #estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
 
 
-    #evaluatePolicy("1.0", param_set, :back, N_min = 100, N_max = 1000, RE_threshold = 0.01)
+    #evaluatePolicy("1.0", param_set, params.uav_policy, uav_surveillance_pattern = params.uav_surveillance_pattern, N_min = 100, N_max = 1000, RE_threshold = 0.01, MS = true)
 
     #if false
     #    s1 = ScenarioOne(params)

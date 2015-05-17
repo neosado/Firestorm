@@ -30,7 +30,7 @@ require("ScenarioOne_.jl")
 require("simScenarioOne.jl")
 
 
-function buildDatabaseV0_1(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
+function buildDatabaseV0_1(datafile::ASCIIString; update::Bool = false, MS::Bool = false, bParallel::Bool = false)
 
     println(strftime(time()), " buildDatabaseV0_1")
 
@@ -38,14 +38,14 @@ function buildDatabaseV0_1(datafile::ASCIIString; update::Bool = false, bParalle
         for policy in [:stay, :back, :landing]
             for aircraft_traj_uncertainty in [0., 1., 2.]
                 println(strftime(time()), " ", param_set, " ", policy, " ", aircraft_traj_uncertainty)
-                retrieveEvaluation("0.1", param_set, policy, datafile = datafile, update = update, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+                retrieveEvaluation("0.1", param_set, policy, datafile = datafile, update = update, aircraft_traj_uncertainty = aircraft_traj_uncertainty, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = MS, bParallel = bParallel)
             end
         end
     end
 end
 
 
-function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
+function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, MS::Bool = false, bParallel::Bool = false)
 
     println(strftime(time()), " buildDatabaseV0_2")
 
@@ -54,7 +54,7 @@ function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParalle
             for sim_comm_loss_duration_mu in [5., 10., 15.]
                 for sim_comm_loss_duration_sigma in [0., 1., 2., 5.]
                     println(strftime(time()), " ", param_set, " ", policy, " ", sim_comm_loss_duration_mu, " ", sim_comm_loss_duration_sigma)
-                    retrieveEvaluation("0.2", param_set, policy, datafile = datafile, update = update, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+                    retrieveEvaluation("0.2", param_set, policy, datafile = datafile, update = update, sim_comm_loss_duration_mu = sim_comm_loss_duration_mu, sim_comm_loss_duration_sigma = sim_comm_loss_duration_sigma, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = MS, bParallel = bParallel)
                 end
             end
         end
@@ -62,7 +62,7 @@ function buildDatabaseV0_2(datafile::ASCIIString; update::Bool = false, bParalle
 end
 
 
-function buildDatabaseV1_0(datafile::ASCIIString; update::Bool = false, bParallel::Bool = false)
+function buildDatabaseV1_0(datafile::ASCIIString; update::Bool = false, MS::Bool = false, bParallel::Bool = false)
 
     println(strftime(time()), " buildDatabaseV1_0")
 
@@ -71,7 +71,7 @@ function buildDatabaseV1_0(datafile::ASCIIString; update::Bool = false, bParalle
             for r_surveillance in [10., 20., 30.]
                 for uav_surveillance_pattern in [:mower, :chase, :back]
                     println(strftime(time()), " ", param_set, " ", policy, " ", r_surveillance, " ", uav_surveillance_pattern)
-                    retrieveEvaluation("1.0", param_set, policy, datafile = datafile, update = update, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, N_min = 1000, N_max = 10000, RE_threshold = 0.01, bParallel = bParallel)
+                    retrieveEvaluation("1.0", param_set, policy, datafile = datafile, update = update, r_surveillance = r_surveillance, uav_surveillance_pattern = uav_surveillance_pattern, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = MS, bParallel = bParallel)
                 end
             end
         end
@@ -83,6 +83,6 @@ end
 
 #buildDatabaseV0_2("s1results_v0_2.jld" * "." * string(int64(time())), update = false, bParallel = true)
 
-#buildDatabaseV1_0("s1results_v1_0.jld" * "." * string(int64(time())), update = false, bParallel = true)
+buildDatabaseV1_0("s1results_v1_0.jld" * "." * string(int64(time())), update = false, MS = true, bParallel = true)
 
 
