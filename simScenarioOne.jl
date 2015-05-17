@@ -162,7 +162,6 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     meanU1 = 0.
 
     n = 0
-    # debug
     ncollisions = 0
 
     for i = 1:N_max
@@ -298,12 +297,14 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             end
 
             if L != nothing && level < sim_stat.nlevel - 1
-                dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
+                if state.uav_status != :left
+                    dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
 
-                if t <= s1.sim_comm_loss_duration && dist < L[level + 2]
-                    sim_stat.N_hit[level+1] += 1
-                    bHitLevel = true
-                    break
+                    if t <= s1.sim_comm_loss_duration && dist < L[level + 2]
+                        sim_stat.N_hit[level+1] += 1
+                        bHitLevel = true
+                        break
+                    end
                 end
             end
 
