@@ -56,6 +56,7 @@ function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::
             U_ = result[5]
             RE_ = result[6]
             N_ = result[7]
+            P = result[8]
         end
 
         record = Dict{ASCIIString, Any}()
@@ -67,6 +68,7 @@ function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::
             record["U_"] = U_
             record["RE_"] = RE_
             record["N_"] = N_
+            record["P"] = P
         end
         database[key] = record
 
@@ -80,7 +82,7 @@ function retrieveEvaluation(version::ASCIIString, param_set_num::Int64, policy::
     #println(N)
     
     if MS
-        return params, U, RE, N, U_, RE_, N_
+        return params, U, RE, N, U_, RE_, N_, P
     else
         return params, U, RE, N
     end

@@ -204,6 +204,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
         meanU_ = NaN
         RE_ = NaN
         n_ = 0
+        p = ncollisions / n
 
         if ncollisions < int64(n / 100)
             L = [Inf, 3]
@@ -231,7 +232,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
             end
         end
 
-        return meanU, RE, n, meanU_, RE_, n_
+        return meanU, RE, n, meanU_, RE_, n_, p
 
     else
         return meanU, RE, n
@@ -292,7 +293,9 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
                 sim_stat.N_hit[level+1] += 1
             end
 
-            sim_stat.n_timestep += 1
+            if t != 0
+                sim_stat.n_timestep += 1
+            end
 
             if L != nothing && level < sim_stat.nlevel - 1
                 dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
@@ -355,7 +358,11 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             #    end
             #end
 
-            p = prod(sim_stat.N_hit ./ sim_stat.N)
+            if sim_stat.N_hit[sim_stat.nlevel] == 0
+                p = 0.
+            else
+                p = prod(sim_stat.N_hit ./ sim_stat.N)
+            end
             if typeof(R) == Int64
                 std_ = sqrt(var(Y[1:i]) / i)
             else
@@ -381,7 +388,11 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
     U_mean = U_sum / n
 
     if level == 0
-        p = prod(sim_stat.N_hit ./ sim_stat.N)
+        if sim_stat.N_hit[sim_stat.nlevel] == 0
+            p = 0.
+        else
+            p = prod(sim_stat.N_hit ./ sim_stat.N)
+        end
         if typeof(R) == Int64
             std_ = sqrt(var(Y) / R[1])
         else
@@ -527,6 +538,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
         U_ = zeros(params.n, params.n)
         RE_ = zeros(params.n, params.n)
         N_ = zeros(Int64, params.n, params.n)
+        P = zeros(params.n, params.n)
     end
 
     if bParallel == false
@@ -546,6 +558,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
                     U_[i, j] = result[4]
                     RE_[i, j] = result[5]
                     N_[i, j] = result[6]
+                    P[i, j] = result[7]
                 end
             end
         end
@@ -570,6 +583,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
                 U_[k] = result[4]
                 RE_[k] = result[5]
                 N_[k] = result[6]
+                P[i, j] = result[7]
             end
 
             k += 1
@@ -583,7 +597,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
     #println(N)
 
     if MS
-        return params, U, RE, N, U_, RE_, N_
+        return params, U, RE, N, U_, RE_, N_, P
     else
         return params, U, RE, N
     end
@@ -663,7 +677,8 @@ if false
     #simulate(params, draw = true, wait = true)
 
     #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
-    #estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true, verbose = 1)
+    result = estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true, verbose = 1)
+    println(result)
 
 
     #L = nothing
