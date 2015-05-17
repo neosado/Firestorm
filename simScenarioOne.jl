@@ -583,7 +583,7 @@ function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symb
                 U_[k] = result[4]
                 RE_[k] = result[5]
                 N_[k] = result[6]
-                P[i, j] = result[7]
+                P[k] = result[7]
             end
 
             k += 1
@@ -677,8 +677,8 @@ if false
     #simulate(params, draw = true, wait = true)
 
     #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
-    result = estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true, verbose = 1)
-    println(result)
+    #result = estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true, verbose = 1)
+    #println(result)
 
 
     #L = nothing
@@ -698,7 +698,7 @@ if false
     #estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
 
 
-    #evaluatePolicy("1.0", param_set, params.uav_policy, uav_surveillance_pattern = params.uav_surveillance_pattern, N_min = 100, N_max = 1000, RE_threshold = 0.01, MS = true)
+    #evaluatePolicy("1.0", param_set, params.uav_policy, r_surveillance = params.r_surveillance, uav_surveillance_pattern = params.uav_surveillance_pattern, N_min = 100, N_max = 1000, RE_threshold = 0.01, MS = true)
 
     #if false
     #    s1 = ScenarioOne(params)
