@@ -297,7 +297,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             end
 
             if L != nothing && level < sim_stat.nlevel - 1
-                if state.uav_status != :left
+                if state.uav_status != :left && state.aircraft_status != :left
                     dist = abs(state.uav_loc[1] - state.aircraft_loc[1]) + abs(state.uav_loc[2] - state.aircraft_loc[2])
 
                     if t <= s1.sim_comm_loss_duration && dist < L[level + 2]
