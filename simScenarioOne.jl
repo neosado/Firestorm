@@ -476,7 +476,7 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
 end
 
 
-function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Float64 = 0., uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., MS::Bool = false, bParallel::Bool = false)
+function evaluatePolicy(version::ASCIIString, param_set_num::Int64, policy::Symbol; sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Union(Float64, Nothing) = nothing, uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., MS::Bool = false, bParallel::Bool = false)
 
     params = generateParams(param_set_num)
 

@@ -1,7 +1,7 @@
 # Author: Youngjun Kim, youngjun@stanford.edu
 # Date: 01/30/2015
 
-parallel = :remote
+parallel = :local_
 ncpu_local = CPU_CORES / 2
 machines = [("youngjun@tula", 20, "/usr/bin"), ("youngjun@cheonan", 4, "/usr/bin"), ("youngjun@cambridge", 6, "/usr/bin")]
 
@@ -81,7 +81,7 @@ end
 
 #buildDatabaseV0_1("s1results_v0_1.jld" * "." * string(int64(time())), update = false, bParallel = true)
 
-#buildDatabaseV0_2("s1results_v0_2.jld" * "." * string(int64(time())), update = false, bParallel = true)
+#buildDatabaseV0_2("s1results_v0_2.jld" * "." * string(int64(time())), update = false, MS = true, bParallel = true)
 
 #buildDatabaseV1_0("s1results_v1_0.jld" * "." * string(int64(time())), update = false, MS = true, bParallel = true)
 
