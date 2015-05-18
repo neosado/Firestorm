@@ -934,7 +934,7 @@ function updateStatePartB(s1::ScenarioOne, s1state::ScenarioOneState, t::Int64)
     end
 
     if t > 0 && t <= s1.sim_comm_loss_duration
-        if s1.uav_policy != :lower && s1state.uav_loc == s1state.aircraft_loc
+        if s1.uav_policy != :lower && (s1state.uav_loc != nothing && s1state.aircraft_loc != nothing && s1state.uav_loc == s1state.aircraft_loc)
             s1state.uav_status = :collided
             s1state.aircraft_status = :collided
         end
