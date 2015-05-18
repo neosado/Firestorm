@@ -149,7 +149,7 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
         saveAnimation(s1v, repeat = true)
     end
 
-    return U, bCollided
+    return U, s1.sim_time, bCollided
 end
 
 
@@ -164,12 +164,16 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     n = 0
     ncollisions = 0
 
+    sim_time = 0
+
     for i = 1:N_max
         n += 1
 
-        U, bCollided = simulate(params)
+        U, sim_time_, bCollided = simulate(params)
         # debug
         #println(U)
+
+        sim_time += (sim_time_ - sim_time) / i
 
         if bCollided
             ncollisions += 1
@@ -224,7 +228,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 
             meanU_ = (1 - p) * meanU1 + p * sim_stat.U2
             RE_ = NaN
-            n_ = int64(sim_stat.n_timestep / params.sim_time)
+            n_ = int64(sim_stat.n_timestep / sim_time)
 
             if verbose >= 1
                 println("U: ", meanU, ", ncoll.: ", ncollisions, ", U1: ", meanU1, ", U2: ", sim_stat.U2, ", p: ", p, ", U_: ", meanU_)
@@ -630,7 +634,7 @@ if false
         # 68% within 1 standard deviation
         # 95% within 2 standard deviation
         # 99.7% within 3 standard deviation
-        params.sim_comm_loss_duration_mu = 15.
+        params.sim_comm_loss_duration_mu = 10.
         params.sim_comm_loss_duration_sigma = 1.
 
         params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
@@ -671,13 +675,13 @@ if false
 
     end
 
-    params.uav_loc = (9, 4)
-    params.uav_policy = :stay
+    #params.uav_loc = (9, 4)
+    #params.uav_policy = :stay
     #params.sim_comm_loss_duration_sigma = 0.
+    #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
 
     #simulate(params, draw = true, wait = true)
 
-    #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
     #result = estimateExpectedUtility(params, N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true, verbose = 1)
     #println(result)
 

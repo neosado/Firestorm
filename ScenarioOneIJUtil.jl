@@ -450,6 +450,7 @@ end
 
 if false
     #retrieveEvaluation("0.1", 1, :back, datafile = "s1results_v0_1.jld", aircraft_traj_uncertainty = 0.)
+    #retrieveEvaluation("0.2", 1, :back, datafile = "s1results_v0_2.jld", update = false, sim_comm_loss_duration_mu = 10., sim_comm_loss_duration_sigma = 1., N_min = 1000, N_max = 10000, RE_threshold = 0.01, MS = true)
 
     #plotEvaluation("0.1", 1, :back, aircraft_traj_uncertainty = 1.)
     #plotEvaluation("0.2", 1, :back, sim_comm_loss_duration_mu = 5., sim_comm_loss_duration_sigma = 0.)
