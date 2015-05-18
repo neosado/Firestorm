@@ -248,7 +248,7 @@ function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symb
 end
 
 
-function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Union(Float64, Nothing) = nothing, uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, T::Float64 = 1., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, MS::Bool = false)
+function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = true, fig = nothing, datafile::ASCIIString = "s1results.jld", sim_comm_loss_duration_mu::Union(Float64, Nothing) = nothing, sim_comm_loss_duration_sigma::Float64 = 0., r_surveillance::Union(Float64, Nothing) = nothing, uav_surveillance_pattern::Union(Symbol, Nothing) = nothing, T::Float64 = 1., aircraft_traj_uncertainty::Union(Float64, Nothing) = nothing, bLabel::Bool = true, MS::Bool = false)
 
     if version == "0.1"
         policies = [:stay, :back, :landing]
@@ -409,38 +409,42 @@ function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = tru
         ax1[:set_xticklabels]([])
         ax1[:set_yticklabels]([])
         ax1[:grid](true)
-        ax1[:set_title]("Policy")
+        if bLabel
+            ax1[:set_title]("Policy")
+        end
 
         ax1[:imshow](PM, alpha = 0.5, interpolation = "none", vmin = 1, vmax = length(policies))
 
-        params_ = params[:back]
-        s1 = ScenarioOne(params_)
-        initTrajectories(s1)
+        if bLabel
+            params_ = params[:back]
+            s1 = ScenarioOne(params_)
+            initTrajectories(s1)
 
-        #ax1[:plot](params_.wf_init_loc[2] - 1, params_.wf_init_loc[1] - 1, "rs", markersize = 100 / n)
+            #ax1[:plot](params_.wf_init_loc[2] - 1, params_.wf_init_loc[1] - 1, "rs", markersize = 100 / n)
 
-        #ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
+            #ax1[:plot](s1.aircraft_path[:, 2] - 1, s1.aircraft_path[:, 1] - 1, "c--")
 
-        #ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
-        path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
-        for t = 1:length(s1.aircraft_planned_dpath)
-            path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
-        end
-        ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
+            #ax1[:plot](s1.aircraft_planned_path[:, 2] - 1, s1.aircraft_planned_path[:, 1] - 1, linestyle = "--", color = "0.7")
+            path = zeros(Int64, length(s1.aircraft_planned_dpath), 2)
+            for t = 1:length(s1.aircraft_planned_dpath)
+                path[t, 1], path[t, 2] = s1.aircraft_planned_dpath[t]
+            end
+            ax1[:plot](path[:, 2] - 1, path[:, 1] - 1, "--", color = "0.7")
 
-        #ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 100 / n)
-        ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "k.")
+            #ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "b^", markersize = 100 / n)
+            ax1[:plot](s1.aircraft_start_loc[2] - 1, s1.aircraft_start_loc[1] - 1, "k.")
 
-        ax1[:plot](params_.uav_base_loc[2] - 1, params_.uav_base_loc[1] - 1, "kx")
+            ax1[:plot](params_.uav_base_loc[2] - 1, params_.uav_base_loc[1] - 1, "kx")
 
-        if length(policies) == 3
-            ax1[:text](0.5, -0.02, "red: emergency landing | green: stay in place | blue: back to base", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
-        elseif length(policies) == 4
-            #ax1[:text](0.5, -0.02, "red: emergency landing | cyan: stay in place | blue: back to base | yellow: lower altitude", color = "red", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
-            ax1[:text](0.01, -0.02, "emergency landing", color = "#B87575", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
-            ax1[:text](0.36, -0.02, "stay in place", color = "#75E7FF", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
-            ax1[:text](0.60, -0.02, "back to base", color = "#7575B8", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
-            ax1[:text](0.84, -0.02, "lower altitude", color = "#FFF175", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+            if length(policies) == 3
+                ax1[:text](0.5, -0.02, "red: emergency landing | green: stay in place | blue: back to base", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+            elseif length(policies) == 4
+                #ax1[:text](0.5, -0.02, "red: emergency landing | cyan: stay in place | blue: back to base | yellow: lower altitude", color = "red", horizontalalignment = "center", verticalalignment = "top", transform = ax1[:transAxes])
+                ax1[:text](0.01, -0.02, "emergency landing", color = "#B87575", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+                ax1[:text](0.36, -0.02, "stay in place", color = "#75E7FF", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+                ax1[:text](0.60, -0.02, "back to base", color = "#7575B8", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+                ax1[:text](0.84, -0.02, "lower altitude", color = "#FFF175", horizontalalignment = "left", verticalalignment = "top", transform = ax1[:transAxes])
+            end
         end
     end
 
