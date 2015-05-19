@@ -14,13 +14,16 @@ function simMultiSplitting()
     params = generateParams(param_set)
 
     if version == "0.1"
-        params.sim_comm_loss_duration_mu = params.n
+        params.sim_comm_loss_duration_mu = 10.
 
-        params.wf_p_fire = 0.12
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
+        params.wf_p_fire = 0.06
 
         params.uav_loc = (4, 5)
         # :stay, :back, :landing
         params.uav_policy = :back
+
         params.aircraft_traj_uncertainty = 1.
 
     elseif version == "0.2"
@@ -30,7 +33,8 @@ function simMultiSplitting()
         params.sim_comm_loss_duration_mu = 10.
         params.sim_comm_loss_duration_sigma = 1.
 
-        params.wf_sim_time = params.n * 2
+        params.wf_init_loc = [(6, 4), (7, 4), (5, 5), (6, 5), (7, 5), (4, 6), (5, 6), (6, 6), (7, 6), (5, 7), (6, 7), (6, 8)]
+        params.wf_sim_time = 0
         params.wf_p_fire = 0.06
 
         params.uav_loc = (4, 5)
@@ -40,25 +44,6 @@ function simMultiSplitting()
         params.aircraft_traj_uncertainty = 0.
         params.aircraft_traj_adaptive = true
         params.aircraft_operation_time_limit = 30
-
-    elseif version == "0.3"
-        params.sim_time = 30
-        params.sim_comm_loss_duration_mu = 10.
-        params.sim_comm_loss_duration_sigma = 1.
-        params.sim_continue = true
-
-        params.wf_sim_time = params.n * 2
-        params.wf_p_fire = 0.06
-
-        params.r_surveillance = 1.
-
-        params.uav_loc = (4, 5)
-        # :stay, :back, :landing, :lower
-        params.uav_policy = :back
-
-        params.aircraft_traj_uncertainty = 0.
-        params.aircraft_traj_adaptive = true
-        params.aircraft_operation_time_limit = 0
 
     elseif version == "1.0"
         params.sim_time = 30
@@ -89,10 +74,10 @@ function simMultiSplitting()
     params.uav_loc = (9, 4)
     params.uav_policy = :stay
     #params.sim_comm_loss_duration_sigma = 0.
-
-
     #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
-    #estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, verbose = 1)
+
+    #result = estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, MS = true, verbose = 1)
+    #println(result)
 
 
     #L = nothing
@@ -109,13 +94,11 @@ function simMultiSplitting()
 
     #lst = [(nothing, 1000), ([Inf, 3], [1000, 10])]
 
-    #lst = [(nothing, 1000000),
+    #lst = [(nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000),
     #       ([Inf, 2], [1000000, 10]), ([Inf, 2], [1000000, 20]), ([Inf, 2], [1000000, 30]), ([Inf, 2], [1000000, 40]), ([Inf, 2], [1000000, 50]),
     #       ([Inf, 3], [1000000, 10]), ([Inf, 3], [1000000, 20]), ([Inf, 3], [1000000, 30]), ([Inf, 3], [1000000, 40]), ([Inf, 3], [1000000, 50]),
     #       ([Inf, 4], [1000000, 10]), ([Inf, 4], [1000000, 20]), ([Inf, 4], [1000000, 30]), ([Inf, 4], [1000000, 40]), ([Inf, 4], [1000000, 50]),
     #       ([Inf, 5], [1000000, 10]), ([Inf, 5], [1000000, 20]), ([Inf, 5], [1000000, 30]), ([Inf, 5], [1000000, 40]), ([Inf, 5], [1000000, 50])]
-
-    lst = [(nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000)]
 
     #results = {}
     #for x in lst

@@ -695,11 +695,6 @@ if false
     #L = [Inf, 3, 2] # level 0, level 1, ...
     #R = [100000, 7, 20] # level 0, level 1, ...
 
-    #L = nothing
-    #R = 1000
-    #L = [Inf, 3]
-    #R = [100000, 10]
-
     #estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
 
 
