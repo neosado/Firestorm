@@ -100,6 +100,14 @@ function simMultiSplitting()
     #       ([Inf, 4], [1000000, 10]), ([Inf, 4], [1000000, 20]), ([Inf, 4], [1000000, 30]), ([Inf, 4], [1000000, 40]), ([Inf, 4], [1000000, 50]),
     #       ([Inf, 5], [1000000, 10]), ([Inf, 5], [1000000, 20]), ([Inf, 5], [1000000, 30]), ([Inf, 5], [1000000, 40]), ([Inf, 5], [1000000, 50])]
 
+    lst = {}
+    for i = 1:30
+        push!(lst, (nothing, 1000000))
+    end
+    for i = 1:30
+        push!(lst, ([Inf, 3], [1000000, 10]))
+    end
+
     #results = {}
     #for x in lst
     #    LOG = estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, verbose = 1)
