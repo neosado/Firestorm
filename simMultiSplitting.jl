@@ -110,11 +110,11 @@ function simMultiSplitting()
 
     #results = {}
     #for x in lst
-    #    LOG = estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, verbose = 1)
+    #    LOG = estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, verbose = 1, bLog = true)
     #    push!(results, LOG)
     #end
 
-    results = pmap(x -> estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01), lst)
+    results = pmap(x -> estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, bLog = true), lst)
 
     list = readdir("mslogs")
     if length(list) == 0
