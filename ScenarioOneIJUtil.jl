@@ -244,7 +244,7 @@ function plotEvaluation(version::ASCIIString, param_set_num::Int64, policy::Symb
         end
     end
 
-    return U, RE, N, params
+    return params, U, RE, N
 end
 
 
