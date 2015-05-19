@@ -299,6 +299,7 @@ function plotPolicy(version::ASCIIString, param_set_num::Int64; draw::Bool = tru
 
             P = Array(Any, npatterns)
             for i = 1:npatterns
+                # XXX value can be 0., Inf, or NaN. the value should be cared properly.
                 P[i] = exp(U_[i] / T)
             end
             P_sum = sum(P)
