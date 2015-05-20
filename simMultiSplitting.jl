@@ -136,6 +136,10 @@ function simMultiSplitting()
     end
 
     if false
+        params.uav_loc = (9, 4)
+        params.uav_policy = :stay
+        #params.sim_comm_loss_duration_sigma = 0.
+
         lst = [1:30]
         results = pmap(x -> estimateExpectedUtility(params, N_min = 1000, N_max = 100000, RE_threshold = 0.01, MS = true, bLog = true), lst)
 
