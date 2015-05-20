@@ -188,9 +188,12 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
             var = (ssU - i * (meanU * meanU)) / ((i - 1) * i)
             RE = abs(sqrt(var) / meanU)
 
-            if verbose >= 1 && i % 100 == 0
-                #println("i: $i, mean: $meanU, RE: $RE")
-                println("i: $i, mean: $meanU, RE: $RE, collisions: $ncollisions")
+            if i % 100 == 0
+                if verbose >= 1
+                    #println("i: $i, mean: $meanU, RE: $RE")
+                    println("i: $i, mean: $meanU, RE: $RE, collisions: $ncollisions")
+                end
+
                 push!(LOG, {i, meanU, RE, ncollisions, meanU1})
             end
 
@@ -204,6 +207,9 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     if verbose >= 1
         #println("n: $n, mean: $meanU, RE: $RE")
         println("n: $n, mean: $meanU, RE: $RE, collisions: $ncollisions")
+    end
+
+    if n != LOG[end][1]
         push!(LOG, {n, meanU, RE, ncollisions, meanU1})
     end
 
@@ -421,7 +427,9 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             println("n: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
         end
 
-        push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE, sim_stat.U2})
+        if sim_stat.n_total != LOG[end][1]
+            push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE, sim_stat.U2})
+        end
 
         return U_mean, p, RE, LOG
     else
