@@ -153,7 +153,7 @@ function simulate(params::ScenarioOneParams; draw::Bool = false, wait::Bool = fa
 end
 
 
-function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., MS::Bool = false, verbose::Int64 = 0)
+function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_max::Int = 1000, RE_threshold::Float64 = 0., MS::Bool = false, verbose::Int64 = 0, bLog::Bool = false)
 
     meanU = 0.
     ssU = 0.
@@ -165,6 +165,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
     ncollisions = 0
 
     sim_time = 0
+    LOG = {}
 
     for i = 1:N_max
         n += 1
@@ -190,7 +191,9 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
             if verbose >= 1 && i % 100 == 0
                 #println("i: $i, mean: $meanU, RE: $RE")
                 println("i: $i, mean: $meanU, RE: $RE, collisions: $ncollisions")
+                push!(LOG, {i, meanU, RE, ncollisions, meanU1})
             end
+
 
             if i >= N_min && (isnan(RE) || (RE_threshold != 0 && RE < RE_threshold))
                 break
@@ -200,7 +203,8 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 
     if verbose >= 1
         #println("n: $n, mean: $meanU, RE: $RE")
-        println("i: $n, mean: $meanU, RE: $RE, collisions: $ncollisions")
+        println("n: $n, mean: $meanU, RE: $RE, collisions: $ncollisions")
+        push!(LOG, {n, meanU, RE, ncollisions, meanU1})
     end
 
     if MS
@@ -216,7 +220,7 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
 
             sim_stat = SimStat(length(L) - 1)
 
-            U_, p, RE_, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
+            U_, p, RE_, LOG_ = simulate(params, L, R, 0, nothing, sim_stat, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
 
             if verbose >= 1
                 for l = 1:sim_stat.nlevel
@@ -235,10 +239,18 @@ function estimateExpectedUtility(params::ScenarioOneParams; N_min::Int = 0, N_ma
             end
         end
 
-        return meanU, RE, n, meanU_, RE_, n_, p
+        if bLog
+            return LOG, LOG_
+        else
+            return meanU, RE, n, meanU_, RE_, n_, p
+        end
 
     else
-        return meanU, RE, n
+        if bLog
+            return LOG
+        else
+            return meanU, RE, n
+        end
 
     end
 end
@@ -349,7 +361,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
         end
 
         if level == 0 && sim_stat.n_total >= nv
-            #U_mean = U_sum / n
+            U_mean = U_sum / n
 
             #println("i: ", sim_stat.n_total, ", mean: ", @neat(U_mean))
             #println("i: ", sim_stat.n_total, ", mean: ", U_mean)
@@ -380,7 +392,7 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             end
             #println()
 
-            push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
+            push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE, sim_stat.U2})
 
             nv += nv_interval
 
@@ -409,16 +421,16 @@ function simulate(params::ScenarioOneParams, L::Union(Vector{Float64}, Nothing),
             println("n: ", sim_stat.n_total, ", s: ", sim_stat.n_timestep, ", p: ", p, ", RE: ", RE)
         end
 
-        push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE})
+        push!(LOG, {sim_stat.n_total, sim_stat.n_timestep, p, RE, sim_stat.U2})
 
-        return U_mean, p, RE, Y, LOG
+        return U_mean, p, RE, LOG
     else
         return U_mean
     end
 end
 
 
-function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, Vector{Float64}), R::Union(Int64, Vector{Int64}); RE_threshold::Float64 = 0., verbose::Int64 = 0)
+function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, Vector{Float64}), R::Union(Int64, Vector{Int64}); RE_threshold::Float64 = 0., verbose::Int64 = 0, bLog::Bool = false)
 
     if L == nothing
         max_level = 0
@@ -429,7 +441,7 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
     sim_stat = SimStat(max_level)
     T = {}
 
-    U, p, RE, Y, LOG = simulate(params, L, R, 0, nothing, sim_stat, T, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
+    U, p, RE, LOG = simulate(params, L, R, 0, nothing, sim_stat, T, RE_threshold = RE_threshold, verbose = verbose, nv = 100, nv_interval = 100)
 
     if verbose >= 1
         #println("n: ", sim_stat.n_total, ", mean: ", U)
@@ -476,7 +488,11 @@ function estimateExpectedUtilityMS(params::ScenarioOneParams, L::Union(Nothing, 
     #    println("p: $p, RE: $RE")
     #end
 
-    return LOG
+    if bLog
+        return LOG
+    else
+        return U, p, RE
+    end
 end
 
 

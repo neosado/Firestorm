@@ -71,67 +71,90 @@ function simMultiSplitting()
 
     end
 
-    params.uav_loc = (9, 4)
-    params.uav_policy = :stay
-    #params.sim_comm_loss_duration_sigma = 0.
-    #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
+    if false
+        params.uav_loc = (9, 4)
+        params.uav_policy = :stay
+        #params.sim_comm_loss_duration_sigma = 0.
+        #params.r_dist = [1. 0.; 2. -100.; 3. -20.]
 
-    #result = estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, MS = true, verbose = 1)
-    #println(result)
-
-
-    #L = nothing
-    #R = 1000000
-
-    #L = [Inf, 3] # level 0, level 1, ...
-    #R = [700000, 10] # level 0, level 1, ...
-
-    #L = [Inf, 3, 2] # level 0, level 1, ...
-    #R = [100000, 7, 20] # level 0, level 1, ...
-
-    #estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
+        #result = estimateExpectedUtility(params, N_min = 1000, N_max = 1000000, RE_threshold = 0.01, MS = true, verbose = 1)
+        #println(result)
 
 
-    #lst = [(nothing, 1000), ([Inf, 3], [1000, 10])]
+        #L = nothing
+        #R = 1000000
 
-    #lst = [(nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000),
-    #       ([Inf, 2], [1000000, 10]), ([Inf, 2], [1000000, 20]), ([Inf, 2], [1000000, 30]), ([Inf, 2], [1000000, 40]), ([Inf, 2], [1000000, 50]),
-    #       ([Inf, 3], [1000000, 10]), ([Inf, 3], [1000000, 20]), ([Inf, 3], [1000000, 30]), ([Inf, 3], [1000000, 40]), ([Inf, 3], [1000000, 50]),
-    #       ([Inf, 4], [1000000, 10]), ([Inf, 4], [1000000, 20]), ([Inf, 4], [1000000, 30]), ([Inf, 4], [1000000, 40]), ([Inf, 4], [1000000, 50]),
-    #       ([Inf, 5], [1000000, 10]), ([Inf, 5], [1000000, 20]), ([Inf, 5], [1000000, 30]), ([Inf, 5], [1000000, 40]), ([Inf, 5], [1000000, 50])]
+        #L = [Inf, 3] # level 0, level 1, ...
+        #R = [700000, 10] # level 0, level 1, ...
 
-    lst = {}
-    for i = 1:30
-        push!(lst, (nothing, 1000000))
+        #L = [Inf, 3, 2] # level 0, level 1, ...
+        #R = [100000, 7, 20] # level 0, level 1, ...
+
+        #estimateExpectedUtilityMS(params, L, R, RE_threshold = 0.01, verbose = 1)
+
+
+        #lst = [(nothing, 1000), ([Inf, 3], [1000, 10])]
+
+        #lst = [(nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000), (nothing, 1000000),
+        #       ([Inf, 2], [1000000, 10]), ([Inf, 2], [1000000, 20]), ([Inf, 2], [1000000, 30]), ([Inf, 2], [1000000, 40]), ([Inf, 2], [1000000, 50]),
+        #       ([Inf, 3], [1000000, 10]), ([Inf, 3], [1000000, 20]), ([Inf, 3], [1000000, 30]), ([Inf, 3], [1000000, 40]), ([Inf, 3], [1000000, 50]),
+        #       ([Inf, 4], [1000000, 10]), ([Inf, 4], [1000000, 20]), ([Inf, 4], [1000000, 30]), ([Inf, 4], [1000000, 40]), ([Inf, 4], [1000000, 50]),
+        #       ([Inf, 5], [1000000, 10]), ([Inf, 5], [1000000, 20]), ([Inf, 5], [1000000, 30]), ([Inf, 5], [1000000, 40]), ([Inf, 5], [1000000, 50])]
+
+        lst = {}
+        for i = 1:30
+            push!(lst, (nothing, 1000000))
+        end
+        for i = 1:30
+            push!(lst, ([Inf, 3], [1000000, 10]))
+        end
+
+        #results = {}
+        #for x in lst
+        #    LOG = estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, verbose = 1, bLog = true)
+        #    push!(results, LOG)
+        #end
+
+        results = pmap(x -> estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, bLog = true), lst)
+
+        list = readdir("mslogs")
+        if length(list) == 0
+            k = 1
+        else
+            k = sort(map(x -> int(split(x, ".")[1][3:end]), list))[end] + 1
+        end
+
+        i = 1
+        for (L, R) in lst
+            f = open("mslogs/ms$k.json", "w")
+            JSON.print(f, {(L, R), results[i]})
+            close(f)
+
+            i += 1
+            k += 1
+        end
     end
-    for i = 1:30
-        push!(lst, ([Inf, 3], [1000000, 10]))
+
+    if false
+        lst = [1:30]
+        results = pmap(x -> estimateExpectedUtility(params, N_min = 1000, N_max = 100000, RE_threshold = 0.01, MS = true, bLog = true), lst)
+
+        list = readdir("mslogs")
+        if length(list) == 0
+            k = 1
+        else
+            k = sort(map(x -> int(split(x, ".")[1][3:end]), list))[end] + 1
+        end
+
+        for i in lst
+            f = open("mslogs/ms$k.json", "w")
+            JSON.print(f, results[i])
+            close(f)
+
+            k += 1
+        end
     end
 
-    #results = {}
-    #for x in lst
-    #    LOG = estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, verbose = 1, bLog = true)
-    #    push!(results, LOG)
-    #end
-
-    results = pmap(x -> estimateExpectedUtilityMS(params, x[1], x[2], RE_threshold = 0.01, bLog = true), lst)
-
-    list = readdir("mslogs")
-    if length(list) == 0
-        k = 1
-    else
-        k = sort(map(x -> int(split(x, ".")[1][3:end]), list))[end] + 1
-    end
-
-    i = 1
-    for (L, R) in lst
-        f = open("mslogs/ms$k.json", "w")
-        JSON.print(f, {(L, R), results[i]})
-        close(f)
-
-        i += 1
-        k += 1
-    end
 end
 
 
